@@ -78,6 +78,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 記錄活動日誌
+    try {
+      await prisma.activityLog.create({
+        data: {
+          groupId,
+          actionType: "add_member",
+          actionBy: "系統",
+          content: `新增了成員「${member.name}」`,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to create activity log:", logError);
+    }
+
     return NextResponse.json<ApiResponse<any>>(
       {
         success: true,

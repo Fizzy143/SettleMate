@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import EditExpenseModal from "../components/EditExpenseModal";
 
 interface Member {
   id: string;
@@ -45,6 +46,8 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddingExpense, setIsAddingExpense] = useState(false);
+  const [isEditingExpense, setIsEditingExpense] = useState(false);
+  const [selectedExpenseForEdit, setSelectedExpenseForEdit] = useState<Expense | null>(null);
   const [splitType, setSplitType] = useState<"equal" | "custom">("equal");
   const [error, setError] = useState("");
 
@@ -504,12 +507,23 @@ export default function ExpensesPage() {
                       <p className="text-2xl font-bold text-blue-600">
                         NT$ {expense.amount.toFixed(2)}
                       </p>
-                      <button
-                        onClick={() => handleDeleteExpense(expense.id)}
-                        className="text-red-600 hover:text-red-800 text-sm mt-2 transition"
-                      >
-                        刪除
-                      </button>
+                      <div className="flex gap-2 mt-2 justify-end">
+                        <button
+                          onClick={() => {
+                            setSelectedExpenseForEdit(expense);
+                            setIsEditingExpense(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-sm transition"
+                        >
+                          編輯
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExpense(expense.id)}
+                          className="text-red-600 hover:text-red-800 text-sm transition"
+                        >
+                          刪除
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -536,6 +550,21 @@ export default function ExpensesPage() {
           )}
         </div>
       </div>
+
+      {/* 編輯支出 Modal */}
+      {selectedExpenseForEdit && (
+        <EditExpenseModal
+          isOpen={isEditingExpense}
+          onClose={() => {
+            setIsEditingExpense(false);
+            setSelectedExpenseForEdit(null);
+          }}
+          groupId={groupId}
+          expense={selectedExpenseForEdit}
+          members={members}
+          onExpenseUpdated={fetchData}
+        />
+      )}
     </div>
   );
 }

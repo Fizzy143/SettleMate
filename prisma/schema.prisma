@@ -19,6 +19,7 @@ model Group {
 
   members   Member[]
   expenses  Expense[]
+  activityLogs ActivityLog[]
 
   @@map("groups")
 }
@@ -81,4 +82,19 @@ model ExpenseParticipant {
 
   @@unique([expenseId, memberId]) // 同一筆支出中，每個成員只能出現一次
   @@map("expense_participants")
+}
+
+// 操作紀錄
+model ActivityLog {
+  id        String   @id @default(cuid())
+  groupId   String
+  actionType String  // "add_expense", "edit_expense", "delete_expense", "add_member", "delete_member"
+  actionBy  String   // 執行操作的人名稱
+  content   String   // 詳細描述
+  createdAt DateTime @default(now())
+
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@map("activity_logs")
 }

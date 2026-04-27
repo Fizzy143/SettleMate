@@ -89,6 +89,20 @@ export async function DELETE(
       data: { isActive: false },
     });
 
+    // 記錄活動日誌
+    try {
+      await prisma.activityLog.create({
+        data: {
+          groupId: member.groupId,
+          actionType: "delete_member",
+          actionBy: "系統",
+          content: `移除了成員「${member.name}」`,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to create activity log:", logError);
+    }
+
     return NextResponse.json<ApiResponse<any>>({
       success: true,
       data: member,

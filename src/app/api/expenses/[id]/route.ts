@@ -171,6 +171,20 @@ export async function PUT(
       },
     });
 
+    // 記錄活動日誌
+    try {
+      await prisma.activityLog.create({
+        data: {
+          groupId: existingExpense.groupId,
+          actionType: "edit_expense",
+          actionBy: expense.paidBy.name,
+          content: `編輯了支出「${expense.name}」，金額 NT$${expense.amount.toFixed(2)}`,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to create activity log:", logError);
+    }
+
     return NextResponse.json<ApiResponse<any>>({
       success: true,
       data: expense,
@@ -195,9 +209,40 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    // 先獲取支出信息用於日誌記錄
+    const expense = await prisma.expense.findUnique({
+      where: { id },
+      include: { paidBy: true },
+    });
+
+    if (!expense) {
+      return NextResponse.json<ApiResponse<any>>(
+        {
+          success: false,
+          error: "Expense not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    // 刪除支出
     await prisma.expense.delete({
       where: { id },
     });
+
+    // 記錄活動日誌
+    try {
+      await prisma.activityLog.create({
+        data: {
+          groupId: expense.groupId,
+          actionType: "delete_expense",
+          actionBy: expense.paidBy.name,
+          content: `刪除了支出「${expense.name}」`,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to create activity log:", logError);
+    }
 
     return NextResponse.json<ApiResponse<any>>({
       success: true,
