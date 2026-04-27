@@ -1,0 +1,84 @@
+// Split Bill App - Prisma Schema
+// 朋友群分帳工具的數據庫結構
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 群組
+model Group {
+  id        String   @id @default(cuid())
+  name      String   // 群組名稱
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   Member[]
+  expenses  Expense[]
+
+  @@map("groups")
+}
+
+// 成員
+model Member {
+  id        String   @id @default(cuid())
+  groupId   String
+  name      String   // 成員名稱
+  role      String?  // 角色標籤（選填）
+  color     String?  // 顏色標記（選填），例如 "bg-red-200"
+  isActive  Boolean  @default(true) // 啟用狀態
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // 作為支出者的記錄
+  expensesPaid Expense[] @relation("paidBy")
+  
+  // 作為分攤者的記錄
+  expenseParticipations ExpenseParticipant[]
+
+  @@index([groupId])
+  @@map("members")
+}
+
+// 支出紀錄
+model Expense {
+  id        String   @id @default(cuid())
+  groupId   String
+  date      DateTime // 支出日期
+  name      String   // 項目名稱
+  amount    Float // 總金額
+  paidById  String   // 付款者 ID
+  notes     String?  // 備註（選填）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group        Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy       Member                @relation("paidBy", fields: [paidById], references: [id])
+  participants ExpenseParticipant[]
+
+  @@index([groupId])
+  @@index([paidById])
+  @@map("expenses")
+}
+
+// 支出分攤紀錄
+model ExpenseParticipant {
+  id        String   @id @default(cuid())
+  expenseId String
+  memberId  String
+  amount    Float // 該成員應分攤的金額
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  member  Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, memberId]) // 同一筆支出中，每個成員只能出現一次
+  @@map("expense_participants")
+}
