@@ -87,7 +87,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/members/[id] - 刪除成員（實際上是標記為不啟用）
+// DELETE /api/members/[id] - 停用成員（標記為不啟用，保留數據完整性）
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -95,7 +95,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // 標記為不啟用而不是真正刪除
+    // 標記為不啟用（停用成員）
     const member = await prisma.member.update({
       where: { id },
       data: { isActive: false },
@@ -105,9 +105,9 @@ export async function DELETE(
     prisma.activityLog.create({
       data: {
         groupId: member.groupId,
-        actionType: "delete_member",
+        actionType: "deactivate_member",
         actionBy: "系統",
-        content: `移除了成員「${member.name}」`,
+        content: `停用了成員「${member.name}」`,
       },
     }).catch((logError) => {
       console.error("Failed to create activity log:", logError);
@@ -118,11 +118,11 @@ export async function DELETE(
       data: member,
     });
   } catch (error) {
-    console.error("Error deleting member:", error);
+    console.error("Error deactivating member:", error);
     return NextResponse.json<ApiResponse<any>>(
       {
         success: false,
-        error: "Failed to delete member",
+        error: "Failed to deactivate member",
       },
       { status: 500 }
     );

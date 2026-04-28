@@ -176,7 +176,7 @@ export default function SettlementsPage() {
                               : "text-gray-600"
                           }`}
                         >
-                          {isPositive ? "👈 " : total.netAmount < -0.01 ? "👉 " : ""}
+                          {isPositive ? "+ " : total.netAmount < -0.01 ? "- " : ""}
                           NT$ {Math.abs(total.netAmount).toFixed(2)}
                         </td>
                       </tr>
@@ -190,9 +190,9 @@ export default function SettlementsPage() {
               <p>
                 💡 提示：
                 <br />
-                👈 表示應該<span className="font-bold">收錢</span>
+                + 表示應該<span className="font-bold">收錢</span>
                 <br />
-                👉 表示應該<span className="font-bold">付錢</span>
+                - 表示應該<span className="font-bold">付錢</span>
               </p>
             </div>
           </div>

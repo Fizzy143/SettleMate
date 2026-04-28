@@ -153,9 +153,9 @@ export default function MembersPage() {
     }
   };
 
-  // 移除成員（標記為不啟用）
+  // 停用成員
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm("確定要刪除此成員嗎？")) return;
+    if (!confirm("確定要停用此成員嗎？（停用後不會顯示在成員列表中，但交易紀錄會保留）")) return;
 
     try {
       const response = await fetch(`/api/members/${memberId}`, {
@@ -167,7 +167,8 @@ export default function MembersPage() {
         setOpenMenuId(null);
         await fetchData();
       } else {
-        setError("刪除失敗");
+        // 顯示具體的錯誤信息
+        setError(data.error || "停用失敗");
       }
     } catch (err) {
       setError("網路錯誤");
@@ -469,7 +470,7 @@ export default function MembersPage() {
                               }}
                               className="block w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm border-t border-gray-200 whitespace-nowrap"
                             >
-                              🗑️ 刪除
+                              � 停用
                             </button>
                           </div>
                         )}
