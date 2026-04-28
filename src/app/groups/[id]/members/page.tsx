@@ -18,15 +18,16 @@ interface MemberStats {
   netAmount: number;
 }
 
-const colorClasses: { [key: string]: string } = {
-  "bg-blue-200": "bg-blue-200",
-  "bg-red-200": "bg-red-200",
-  "bg-green-200": "bg-green-200",
-  "bg-yellow-200": "bg-yellow-200",
-  "bg-purple-200": "bg-purple-200",
-  "bg-pink-200": "bg-pink-200",
-  "bg-indigo-200": "bg-indigo-200",
-  "bg-cyan-200": "bg-cyan-200",
+// 顏色映射 - Tailwind class 到實際顏色
+const colorMap: { [key: string]: string } = {
+  "bg-blue-200": "#bfdbfe",
+  "bg-red-200": "#fecaca",
+  "bg-green-200": "#bbf7d0",
+  "bg-yellow-200": "#fef08a",
+  "bg-purple-200": "#e9d5ff",
+  "bg-pink-200": "#fbcfe8",
+  "bg-indigo-200": "#c7d2fe",
+  "bg-cyan-200": "#a5f3fc",
 };
 
 export default function MembersPage() {
@@ -329,7 +330,7 @@ export default function MembersPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             {activeMembers.map((member) => {
               const stats = memberStats.get(member.id);
-              const bgColor = member.color ? colorClasses[member.color] : "bg-gray-200";
+              const bgColor = member.color ? colorMap[member.color] : "#e5e7eb";
               const isEditing = editingMemberId === member.id;
 
               return (
@@ -405,9 +406,10 @@ export default function MembersPage() {
                     <>
                       <Link
                         href={`/groups/${groupId}/members/${member.id}`}
-                        className={`p-4 rounded-lg border-2 border-gray-200 ${bgColor} hover:shadow-lg transition cursor-pointer`}
+                        style={{ backgroundColor: bgColor }}
+                        className="block p-4 rounded-lg border-2 border-gray-200 hover:shadow-lg transition cursor-pointer"
                       >
-                        <div className="flex justify-between items-start mb-3 pr-8">
+                        <div className="flex justify-between items-start mb-3 pr-12">
                           <div className="flex-1">
                             <h3 className="font-bold text-gray-900 text-lg">
                               {member.name}
@@ -442,10 +444,10 @@ export default function MembersPage() {
                             e.preventDefault();
                             setOpenMenuId(openMenuId === member.id ? null : member.id);
                           }}
-                          className="p-2 hover:bg-gray-300 hover:bg-opacity-50 rounded-lg transition"
+                          className="p-1 hover:bg-gray-300 rounded-lg transition"
                           title="更多選項"
                         >
-                          <span className="text-xl">⋮</span>
+                          <span className="text-xl font-bold text-gray-800">⋮</span>
                         </button>
 
                         {/* 下拉菜單 */}

@@ -232,10 +232,10 @@ export default function Home() {
                               openMenuId === group.id ? null : group.id
                             );
                           }}
-                          className="p-2 hover:bg-gray-200 rounded-lg transition"
+                          className="p-1 hover:bg-gray-200 rounded-lg transition"
                           title="更多選項"
                         >
-                          <span className="text-xl">⋮</span>
+                          <span className="text-xl font-bold text-gray-800">⋮</span>
                         </button>
 
                         {/* 下拉菜單 */}
