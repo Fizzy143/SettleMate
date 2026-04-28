@@ -59,6 +59,18 @@ export async function PUT(
       },
     });
 
+    // 異步記錄活動日誌
+    prisma.activityLog.create({
+      data: {
+        groupId: member.groupId,
+        actionType: "edit_member",
+        actionBy: "系統",
+        content: `編輯了成員「${member.name}」的資訊`,
+      },
+    }).catch((logError) => {
+      console.error("Failed to create activity log:", logError);
+    });
+
     return NextResponse.json<ApiResponse<any>>({
       success: true,
       data: member,
@@ -89,19 +101,17 @@ export async function DELETE(
       data: { isActive: false },
     });
 
-    // 記錄活動日誌
-    try {
-      await prisma.activityLog.create({
-        data: {
-          groupId: member.groupId,
-          actionType: "delete_member",
-          actionBy: "系統",
-          content: `移除了成員「${member.name}」`,
-        },
-      });
-    } catch (logError) {
+    // 異步記錄活動日誌（不等待完成，不阻擋用戶）
+    prisma.activityLog.create({
+      data: {
+        groupId: member.groupId,
+        actionType: "delete_member",
+        actionBy: "系統",
+        content: `移除了成員「${member.name}」`,
+      },
+    }).catch((logError) => {
       console.error("Failed to create activity log:", logError);
-    }
+    });
 
     return NextResponse.json<ApiResponse<any>>({
       success: true,

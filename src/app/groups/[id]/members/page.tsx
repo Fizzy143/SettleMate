@@ -37,6 +37,10 @@ export default function MembersPage() {
   const [memberStats, setMemberStats] = useState<Map<string, MemberStats>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isAddingMember, setIsAddingMember] = useState(false);
+  const [isSubmittingMember, setIsSubmittingMember] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editingMemberData, setEditingMemberData] = useState<Partial<Member> | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newMember, setNewMember] = useState({
     name: "",
     role: "",
@@ -117,8 +121,9 @@ export default function MembersPage() {
   // 新增成員
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMember.name.trim()) return;
+    if (!newMember.name.trim() || isSubmittingMember) return;
 
+    setIsSubmittingMember(true);
     try {
       const response = await fetch("/api/members", {
         method: "POST",
@@ -142,12 +147,14 @@ export default function MembersPage() {
     } catch (err) {
       setError("網路錯誤");
       console.error(err);
+    } finally {
+      setIsSubmittingMember(false);
     }
   };
 
   // 移除成員（標記為不啟用）
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm("確定要移除此成員嗎？")) return;
+    if (!confirm("確定要刪除此成員嗎？")) return;
 
     try {
       const response = await fetch(`/api/members/${memberId}`, {
@@ -156,9 +163,46 @@ export default function MembersPage() {
 
       const data = await response.json();
       if (data.success) {
+        setOpenMenuId(null);
         await fetchData();
       } else {
-        setError("移除失敗");
+        setError("刪除失敗");
+      }
+    } catch (err) {
+      setError("網路錯誤");
+      console.error(err);
+    }
+  };
+
+  // 開始編輯成員
+  const startEditMember = (member: Member) => {
+    setEditingMemberId(member.id);
+    setEditingMemberData({ ...member });
+    setOpenMenuId(null);
+  };
+
+  // 保存編輯
+  const handleSaveEditMember = async (memberId: string) => {
+    if (!editingMemberData?.name?.trim()) return;
+
+    try {
+      const response = await fetch(`/api/members/${memberId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingMemberData.name.trim(),
+          role: editingMemberData.role?.trim() || null,
+          color: editingMemberData.color,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setEditingMemberId(null);
+        setEditingMemberData(null);
+        await fetchData();
+      } else {
+        setError(data.error || "更新失敗");
       }
     } catch (err) {
       setError("網路錯誤");
@@ -268,9 +312,10 @@ export default function MembersPage() {
 
             <button
               type="submit"
-              className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition"
+              disabled={isSubmittingMember}
+              className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition"
             >
-              新增成員
+              {isSubmittingMember ? "新增中..." : "新增成員"}
             </button>
           </form>
         )}
@@ -285,50 +330,151 @@ export default function MembersPage() {
             {activeMembers.map((member) => {
               const stats = memberStats.get(member.id);
               const bgColor = member.color ? colorClasses[member.color] : "bg-gray-200";
+              const isEditing = editingMemberId === member.id;
 
               return (
-                <Link
-                  key={member.id}
-                  href={`/groups/${groupId}/members/${member.id}`}
-                  className={`p-4 rounded-lg border-2 border-gray-200 ${bgColor} hover:shadow-lg transition cursor-pointer`}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 text-lg">
-                        {member.name}
-                      </h3>
-                      {member.role && (
-                        <p className="text-sm text-gray-600">{member.role}</p>
-                      )}
+                <div key={member.id} className="relative">
+                  {isEditing ? (
+                    // 編輯模式
+                    <div className="p-4 rounded-lg border-2 border-blue-300 bg-blue-50">
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={editingMemberData?.name || ""}
+                          onChange={(e) =>
+                            setEditingMemberData({
+                              ...editingMemberData,
+                              name: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="成員名稱"
+                        />
+                        <input
+                          type="text"
+                          value={editingMemberData?.role || ""}
+                          onChange={(e) =>
+                            setEditingMemberData({
+                              ...editingMemberData,
+                              role: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="角色/標籤（選填）"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {colorOptions.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() =>
+                                setEditingMemberData({
+                                  ...editingMemberData,
+                                  color,
+                                })
+                              }
+                              className={`w-8 h-8 rounded-lg border-2 transition ${
+                                editingMemberData?.color === color
+                                  ? "border-gray-900"
+                                  : "border-gray-300"
+                              } ${color}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <button
+                            onClick={() => handleSaveEditMember(member.id)}
+                            className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition"
+                          >
+                            保存
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingMemberId(null);
+                              setEditingMemberData(null);
+                            }}
+                            className="flex-1 px-3 py-2 bg-gray-400 text-white text-sm rounded hover:bg-gray-500 transition"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleRemoveMember(member.id);
-                      }}
-                      className="text-red-600 hover:text-red-800 transition text-sm font-semibold"
-                      title="移除"
-                    >
-                      刪除
-                    </button>
-                  </div>
+                  ) : (
+                    // 正常顯示模式
+                    <>
+                      <Link
+                        href={`/groups/${groupId}/members/${member.id}`}
+                        className={`p-4 rounded-lg border-2 border-gray-200 ${bgColor} hover:shadow-lg transition cursor-pointer`}
+                      >
+                        <div className="flex justify-between items-start mb-3 pr-8">
+                          <div className="flex-1">
+                            <h3 className="font-bold text-gray-900 text-lg">
+                              {member.name}
+                            </h3>
+                            {member.role && (
+                              <p className="text-sm text-gray-600">{member.role}</p>
+                            )}
+                          </div>
+                        </div>
 
-                  {/* 統計信息 */}
-                  <div className="bg-white bg-opacity-70 p-3 rounded text-sm space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">總支出:</span>
-                      <span className="font-semibold text-gray-900">
-                        NT$ {(stats?.totalExpense || 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">淨額:</span>
-                      <span className={`font-bold ${amountColor(stats?.netAmount || 0)}`}>
-                        {formatAmount(stats?.netAmount || 0)}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
+                        {/* 統計信息 */}
+                        <div className="bg-white bg-opacity-70 p-3 rounded text-sm space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-700">總支出:</span>
+                            <span className="font-semibold text-gray-900">
+                              NT$ {(stats?.totalExpense || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-700">淨額:</span>
+                            <span className={`font-bold ${amountColor(stats?.netAmount || 0)}`}>
+                              {formatAmount(stats?.netAmount || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+
+                      {/* 三點菜單按鈕 */}
+                      <div className="absolute top-4 right-4">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setOpenMenuId(openMenuId === member.id ? null : member.id);
+                          }}
+                          className="p-2 hover:bg-gray-300 hover:bg-opacity-50 rounded-lg transition"
+                          title="更多選項"
+                        >
+                          <span className="text-xl">⋮</span>
+                        </button>
+
+                        {/* 下拉菜單 */}
+                        {openMenuId === member.id && (
+                          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                startEditMember(member);
+                              }}
+                              className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-gray-700 text-sm whitespace-nowrap"
+                            >
+                              ✏️ 編輯
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleRemoveMember(member.id);
+                              }}
+                              className="block w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm border-t border-gray-200 whitespace-nowrap"
+                            >
+                              🗑️ 刪除
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               );
             })}
           </div>

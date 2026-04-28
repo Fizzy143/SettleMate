@@ -276,6 +276,51 @@ export default function ExpenseModal({
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 分攤對象 *
               </label>
+
+              {/* 自訂金額時顯示剩餘金額 */}
+              {splitType === "custom" && newExpense.amount && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">總金額:</span>
+                      <span className="font-semibold text-gray-900">
+                        NT${parseFloat(newExpense.amount || "0").toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">已分配:</span>
+                      <span className="font-semibold text-gray-900">
+                        NT${newExpense.participants
+                          .reduce((sum, p) => sum + (p.amount || 0), 0)
+                          .toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-blue-200">
+                      <span className="font-medium text-gray-800">剩餘:</span>
+                      <span className={`font-bold ${
+                        Math.abs(
+                          parseFloat(newExpense.amount || "0") -
+                          newExpense.participants.reduce(
+                            (sum, p) => sum + (p.amount || 0),
+                            0
+                          )
+                        ) < 0.01
+                          ? "text-green-600"
+                          : "text-orange-600"
+                      }`}>
+                        NT${(
+                          parseFloat(newExpense.amount || "0") -
+                          newExpense.participants.reduce(
+                            (sum, p) => sum + (p.amount || 0),
+                            0
+                          )
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid sm:grid-cols-2 gap-3">
                 {members.map((member) => (
                   <div key={member.id}>
