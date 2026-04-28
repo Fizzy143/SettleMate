@@ -172,20 +172,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 記錄活動日誌
-    try {
-      await prisma.activityLog.create({
-        data: {
-          groupId,
-          actionType: "add_expense",
-          actionBy: expense.paidBy.name,
-          content: `新增了支出「${expense.name}」，金額 NT$${expense.amount.toFixed(2)}`,
-        },
-      });
-    } catch (logError) {
+    // 異步記錄活動日誌（不等待完成，不阻擋用戶）
+    prisma.activityLog.create({
+      data: {
+        groupId,
+        actionType: "add_expense",
+        actionBy: expense.paidBy.name,
+        content: `新增了支出「${expense.name}」，金額 NT$${expense.amount.toFixed(2)}`,
+      },
+    }).catch((logError) => {
       console.error("Failed to create activity log:", logError);
-      // 不中斷主要操作，只記錄錯誤
-    }
+    });
 
     return NextResponse.json<ApiResponse<any>>(
       {

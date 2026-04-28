@@ -7,8 +7,21 @@ export async function GET() {
   try {
     const groups = await prisma.group.findMany({
       include: {
-        members: true,
-        expenses: true,
+        members: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+        _count: {
+          select: {
+            expenses: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
       },
     });
 

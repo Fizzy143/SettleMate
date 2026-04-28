@@ -53,12 +53,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 檢查群組是否存在
-    const group = await prisma.group.findUnique({
-      where: { id: groupId },
+    const member = await prisma.member.create({
+      data: {
+        groupId,
+        name: name.trim(),
+        role: role || null,
+        color: color || null,
+        isActive: true,
+      },
+    }).catch((error) => {
+      // 如果群組不存在，會拋出外鍵約束錯誤
+      if (error.code === 'P2003') {
+        throw new Error('Group not found');
+      }
+      throw error;
     });
 
-    if (!group) {
+    // 異步記錄活動日誌（不等待完成，不阻擋用戶）
+    prisma.activityLog.create({
+      data: {
+        groupId,
+        actionType: "add_member",
+        actionBy: "系統",
+        content: `新增了成員「${member.name}」`,
+      },
+    }).catch((logError) => {
+      console.error("Failed to create activity log:", logError);
+    });
+
+    return NextResponse.json<ApiResponse<any>>(
+      {
+        success: true,
+        data: member,
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error("Error creating member:", error);
+    
+    // 處理群組不存在的錯誤
+    if (error.message === 'Group not found' || error.code === 'P2003') {
       return NextResponse.json<ApiResponse<any>>(
         {
           success: false,
@@ -68,39 +102,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = await prisma.member.create({
-      data: {
-        groupId,
-        name: name.trim(),
-        role: role || null,
-        color: color || null,
-        isActive: true,
-      },
-    });
-
-    // 記錄活動日誌
-    try {
-      await prisma.activityLog.create({
-        data: {
-          groupId,
-          actionType: "add_member",
-          actionBy: "系統",
-          content: `新增了成員「${member.name}」`,
-        },
-      });
-    } catch (logError) {
-      console.error("Failed to create activity log:", logError);
-    }
-
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: true,
-        data: member,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("Error creating member:", error);
     return NextResponse.json<ApiResponse<any>>(
       {
         success: false,
