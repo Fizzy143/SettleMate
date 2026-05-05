@@ -3,11 +3,6 @@
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-interface Group {
-  id: string;
-  name: string;
-}
-
 export default function GroupPage() {
   const params = useParams();
   const router = useRouter();

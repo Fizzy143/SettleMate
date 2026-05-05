@@ -1,59 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { ArrowLeft, ChevronDown, ReceiptText, UserRound } from "lucide-react";
+import { apiFetch } from "@/lib/clientIdentity";
+import { AmountText, Badge, Card, EmptyState, LinkButton, MemberAvatar } from "@/components/ui";
+import { formatCurrency, formatDate, formatSignedCurrency } from "@/lib/format";
 
-interface Member {
+type Member = {
   id: string;
   name: string;
-  color?: string;
+  color?: string | null;
+  role?: string | null;
   groupId: string;
   isActive: boolean;
-}
+};
 
-interface ExpenseParticipant {
-  id: string;
-  memberId: string;
-  amount: number;
-  member: Member;
-}
-
-interface Expense {
+type Expense = {
   id: string;
   name: string;
   amount: number;
   date: string;
   paidById: string;
   paidBy: Member;
-  notes?: string;
-  participants: ExpenseParticipant[];
-  createdAt: string;
+  notes?: string | null;
+  participants: Array<{
+    id: string;
+    memberId: string;
+    amount: number;
+    member: Member;
+  }>;
   type: "paid" | "participated";
-}
+};
 
-interface DebtRelationship {
+type DebtRelationship = {
   memberId: string;
   memberName: string;
-  amount: number; // 正數=對方欠我，負數=我欠對方
-}
+  amount: number;
+};
 
-interface MemberDetail {
+type MemberDetail = {
   member: Member;
   transactions: Expense[];
   debtRelationships: DebtRelationship[];
   netAmount: number;
-}
-
-const colorClasses: { [key: string]: string } = {
-  "bg-blue-200": "bg-blue-200",
-  "bg-red-200": "bg-red-200",
-  "bg-green-200": "bg-green-200",
-  "bg-yellow-200": "bg-yellow-200",
-  "bg-purple-200": "bg-purple-200",
-  "bg-pink-200": "bg-pink-200",
-  "bg-indigo-200": "bg-indigo-200",
-  "bg-cyan-200": "bg-cyan-200",
 };
 
 export default function MemberDetailPage() {
@@ -64,215 +55,164 @@ export default function MemberDetailPage() {
   const [data, setData] = useState<MemberDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expandedTransactionId, setExpandedTransactionId] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchMemberDetail = async () => {
+      setIsLoading(true);
+      setError("");
+      try {
+        const response = await apiFetch(`/api/members/${memberId}/detail`);
+        const result = await response.json();
+        if (result.success) setData(result.data);
+        else setError(result.error || "無法載入成員明細");
+      } catch (err) {
+        setError("無法載入成員明細");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchMemberDetail();
   }, [memberId]);
 
-  const fetchMemberDetail = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`/api/members/${memberId}/detail`);
-      const result = await response.json();
+  if (isLoading) return <Card className="p-6 text-sm text-slate-500">載入成員明細中...</Card>;
 
-      if (result.success) {
-        setData(result.data);
-      } else {
-        setError(result.error || "加載失敗");
-      }
-    } catch (err) {
-      setError("網路錯誤");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (isLoading) {
+  if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8 flex items-center justify-center">
-        <p className="text-gray-600">加載中...</p>
-      </div>
+      <EmptyState
+        title="找不到成員"
+        description={error || "這位成員不存在，或你沒有權限查看。"}
+        action={<LinkButton href={`/groups/${groupId}/members`}>返回成員</LinkButton>}
+      />
     );
   }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8">
-        <Link
-          href={`/groups/${groupId}/members`}
-          className="text-blue-600 hover:underline mb-4 inline-block"
-        >
-          ← 返回成員列表
-        </Link>
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error || "未找到成員"}
-        </div>
-      </div>
-    );
-  }
-
-  const { member, transactions, debtRelationships, netAmount } = data;
-  const bgColor = member.color ? colorClasses[member.color] : "bg-gray-200";
-
-  const formatAmount = (amount: number): string => {
-    if (amount > 0) return `+NT$${amount.toFixed(2)}`;
-    if (amount < 0) return `-NT$${Math.abs(amount).toFixed(2)}`;
-    return "NT$0.00";
-  };
-
-  const amountColor = (amount: number): string => {
-    if (amount > 0) return "text-green-600 font-bold";
-    if (amount < 0) return "text-red-600 font-bold";
-    return "text-gray-600";
-  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* 返回按鈕 */}
-        <Link
-          href={`/groups/${groupId}/members`}
-          className="text-blue-600 hover:underline mb-6 inline-block"
-        >
-          ← 返回成員列表
-        </Link>
+    <div className="space-y-4">
+      <Link href={`/groups/${groupId}/members`} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+        <ArrowLeft size={16} /> 返回成員
+      </Link>
 
-        {/* 成員卡片 */}
-        <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 mb-8 text-center">
-          <div className={`w-24 h-24 ${bgColor} rounded-full mx-auto mb-4`} />
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
-            {member.name}
-          </h1>
-          <p className={`text-3xl ${amountColor(netAmount)}`}>
-            {formatAmount(netAmount)}
-          </p>
-          <p className="text-gray-600 text-sm mt-2">
-            {netAmount > 0
-              ? "該成員應收的總額"
-              : netAmount < 0
-              ? "該成員應付的總額"
-              : "該成員已結清"}
-          </p>
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <MemberAvatar name={data.member.name} color={data.member.color} size="lg" />
+            <div>
+              <h2 className="text-2xl font-bold text-slate-950">{data.member.name}</h2>
+              {data.member.role && <p className="mt-1 text-sm text-slate-500">{data.member.role}</p>}
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-semibold text-slate-500">個人淨額</p>
+            <AmountText value={data.netAmount}>{formatSignedCurrency(data.netAmount)}</AmountText>
+          </div>
         </div>
+      </Card>
 
-        {/* 欠債關係 */}
-        {debtRelationships.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">💳 欠債關係</h2>
-            <div className="space-y-4">
-              {debtRelationships.map((debt) => (
-                <div
-                  key={debt.memberId}
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                >
-                  <span className="font-semibold text-gray-900">
-                    {debt.memberName}
-                  </span>
-                  <div className="text-right">
-                    <p className={`font-bold ${amountColor(debt.amount)}`}>
-                      {formatAmount(debt.amount)}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {debt.amount > 0
-                        ? `${debt.memberName} 欠 ${member.name}`
-                        : `${member.name} 欠 ${debt.memberName}`}
-                    </p>
-                  </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <UserRound size={18} />
+            <h3 className="font-bold text-slate-950">與其他人的關係</h3>
+          </div>
+          {data.debtRelationships.length === 0 ? (
+            <p className="text-sm text-slate-500">目前沒有個別債務關係。</p>
+          ) : (
+            <div className="space-y-2">
+              {data.debtRelationships.map((relationship) => (
+                <div key={relationship.memberId} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <span className="text-sm font-semibold text-slate-700">{relationship.memberName}</span>
+                  <AmountText value={relationship.amount}>{formatSignedCurrency(relationship.amount)}</AmountText>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* 交易記錄 */}
-        <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            📝 交易記錄 ({transactions.length})
-          </h2>
-
-          {transactions.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              該成員暫無交易記錄
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {transactions.map((transaction) => {
-                const participant = transaction.participants.find(
-                  (p) => p.memberId === memberId
-                );
-
-                return (
-                  <div
-                    key={transaction.id}
-                    className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition"
-                  >
-                    {/* 標題和日期 */}
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-gray-900 text-lg">
-                          {transaction.name}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {new Date(transaction.date).toLocaleDateString("zh-TW")}{" "}
-                          · 支付人:{" "}
-                          <span className="font-semibold">
-                            {transaction.paidBy.name}
-                          </span>
-                        </p>
-                        {transaction.notes && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            備註：{transaction.notes}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-blue-600">
-                          NT$ {transaction.amount.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 分攤信息 */}
-                    <div className="bg-gray-50 p-3 rounded text-sm mb-3">
-                      <p className="font-semibold text-gray-900 mb-2">分攤明細:</p>
-                      <div className="grid sm:grid-cols-2 gap-2">
-                        {transaction.participants.map((p) => (
-                          <div
-                            key={p.id}
-                            className={`flex justify-between ${
-                              p.memberId === memberId
-                                ? "font-bold text-blue-600"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            <span>{p.member.name}</span>
-                            <span>NT$ {p.amount.toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 角色標籤 */}
-                    <div className="flex flex-wrap gap-2">
-                      {transaction.paidById === memberId && (
-                        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-semibold">
-                          💸 支付人
-                        </span>
-                      )}
-                      {participant && (
-                        <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-semibold">
-                          ✓ 參與人 ({formatAmount(participant.amount)})
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           )}
-        </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <ReceiptText size={18} />
+            <h3 className="font-bold text-slate-950">參與支出</h3>
+          </div>
+          <p className="text-sm text-slate-500">共 {data.transactions.length} 筆相關交易。</p>
+        </Card>
       </div>
+
+      {data.transactions.length === 0 ? (
+        <EmptyState title="尚無交易" description="這位成員還沒有付款或參與分攤。" />
+      ) : (
+        <Card className="divide-y divide-slate-100">
+          {data.transactions.map((transaction) => (
+            <div key={transaction.id} className="p-4">
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() =>
+                  setExpandedTransactionId(expandedTransactionId === transaction.id ? null : transaction.id)
+                }
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+                      <h3 className="truncate font-bold text-slate-950">{transaction.name}</h3>
+                      <Badge tone={transaction.type === "paid" ? "green" : "blue"}>
+                        {transaction.type === "paid" ? "付款" : "分攤"}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-slate-500">
+                      {formatDate(transaction.date)} · 由 {transaction.paidBy.name} 支付
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-start gap-2">
+                    <p className="font-bold text-slate-950">{formatCurrency(transaction.amount)}</p>
+                    <ChevronDown
+                      size={18}
+                      className={`mt-1 text-slate-400 transition ${
+                        expandedTransactionId === transaction.id ? "rotate-180" : ""
+                      }`}
+                    />
+                  </div>
+                </div>
+              </button>
+
+              {expandedTransactionId === transaction.id && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  {transaction.notes && <p className="mb-3 text-sm text-slate-500">{transaction.notes}</p>}
+                  <div className="grid gap-2">
+                    {transaction.participants.map((participant) => {
+                      const isCurrentMember = participant.memberId === memberId;
+                      return (
+                        <div
+                          key={participant.id}
+                          className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+                            isCurrentMember ? "border border-sky-200 bg-sky-50" : "bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <MemberAvatar
+                              name={participant.member.name}
+                              color={participant.member.color}
+                              size="sm"
+                            />
+                            <span className="truncate text-sm font-semibold text-slate-700">
+                              {participant.member.name}
+                            </span>
+                            {isCurrentMember && <Badge tone="blue">目前成員</Badge>}
+                          </div>
+                          <span className="shrink-0 text-sm font-bold tabular-nums text-slate-950">
+                            {formatCurrency(participant.amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
     </div>
   );
 }

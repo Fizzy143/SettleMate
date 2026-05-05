@@ -1,275 +1,158 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
+import { ArrowRight, CheckCircle2, CreditCard } from "lucide-react";
+import { apiFetch } from "@/lib/clientIdentity";
+import { AmountText, Badge, Card, EmptyState, MemberAvatar } from "@/components/ui";
+import { formatCurrency, formatSignedCurrency } from "@/lib/format";
 
-interface MemberTotal {
-  memberId: string;
-  paidTotal: number;
-  owedTotal: number;
-  netAmount: number;
-}
-
-interface Settlement {
-  from: string;
-  fromName: string;
-  to: string;
-  toName: string;
-  amount: number;
-}
-
-interface SettlementData {
-  memberTotals: MemberTotal[];
-  settlements: Settlement[];
-}
-
-interface Group {
-  id: string;
-  name: string;
-}
-
-interface Member {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
+type Member = { id: string; name: string; color?: string | null; isActive: boolean };
+type MemberTotal = { memberId: string; paidTotal: number; owedTotal: number; netAmount: number };
+type Settlement = { from: string; fromName: string; to: string; toName: string; amount: number };
+type SettlementData = { memberTotals: MemberTotal[]; settlements: Settlement[] };
 
 export default function SettlementsPage() {
   const params = useParams();
   const groupId = params.id as string;
 
-  const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [settlementData, setSettlementData] = useState<SettlementData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // 加載群組和結算數據
   useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError("");
+      try {
+        const [membersRes, settlementsRes] = await Promise.all([
+          apiFetch(`/api/members?groupId=${groupId}`),
+          apiFetch(`/api/settlements?groupId=${groupId}`),
+        ]);
+        const membersData = await membersRes.json();
+        const settlementsJson = await settlementsRes.json();
+        if (membersData.success) {
+          setMembers((membersData.data || []).filter((member: Member) => member.isActive));
+        }
+        if (settlementsJson.success) setSettlementData(settlementsJson.data);
+        else setError(settlementsJson.error || "無法計算結算");
+      } catch (err) {
+        setError("無法計算結算");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchData();
   }, [groupId]);
 
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
-      const [groupRes, membersRes, settlementRes] = await Promise.all([
-        fetch(`/api/groups/${groupId}`),
-        fetch(`/api/members?groupId=${groupId}`),
-        fetch(`/api/settlements?groupId=${groupId}`),
-      ]);
+  const memberMap = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
 
-      const groupData = await groupRes.json();
-      const membersData = await membersRes.json();
-      const settlementRes_ = await settlementRes.json();
-
-      if (groupData.success) setGroup(groupData.data);
-      if (membersData.success) {
-        const activeMembers = (membersData.data || []).filter((m: Member) => m.isActive);
-        setMembers(activeMembers);
-      }
-      if (settlementRes_.success) setSettlementData(settlementRes_.data);
-    } catch (err) {
-      setError("加載失敗");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">加載中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!group) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8">
-        <Link href="/" className="text-blue-600 hover:underline">
-          ← 返回首頁
-        </Link>
-      </div>
-    );
-  }
-
-  const memberMap = new Map(members.map((m) => [m.id, m]));
+  if (isLoading) return <Card className="p-6 text-sm text-slate-500">計算結算中...</Card>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* 返回按鈕 */}
-        <Link
-          href={`/groups/${groupId}`}
-          className="text-blue-600 hover:underline mb-6 inline-block"
-        >
-          ← 返回群組
-        </Link>
-
-        {/* 頭部 */}
-        <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            💵 {group.name} - 結算
-          </h1>
-          <p className="text-gray-600">
-            快速查看每個人的應收應付情況
-          </p>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-slate-950 text-white">
+            <CreditCard size={22} />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-950">結算建議</h2>
+            <p className="text-sm text-slate-500">用最少轉帳筆數，把所有人的帳結清。</p>
+          </div>
         </div>
+      </Card>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          {error}
+        </div>
+      )}
 
-        {/* 成員總額表格 */}
-        {settlementData && settlementData.memberTotals.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              👥 成員統計
-            </h2>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-300">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                      成員
-                    </th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      代墊金額
-                    </th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      應負擔
-                    </th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      淨額
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {settlementData.memberTotals.map((total) => {
-                    const member = memberMap.get(total.memberId);
-                    const isPositive = total.netAmount > 0.01;
-
-                    return (
-                      <tr key={total.memberId} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="py-3 px-4 font-semibold text-gray-900">
-                          {member?.name || "未知"}
-                        </td>
-                        <td className="text-right py-3 px-4 text-gray-700">
-                          NT$ {total.paidTotal.toFixed(2)}
-                        </td>
-                        <td className="text-right py-3 px-4 text-gray-700">
-                          NT$ {total.owedTotal.toFixed(2)}
-                        </td>
-                        <td
-                          className={`text-right py-3 px-4 font-bold text-lg ${
-                            isPositive
-                              ? "text-green-600"
-                              : total.netAmount < -0.01
-                              ? "text-red-600"
-                              : "text-gray-600"
-                          }`}
-                        >
-                          {isPositive ? "+ " : total.netAmount < -0.01 ? "- " : ""}
-                          NT$ {Math.abs(total.netAmount).toFixed(2)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-              <p>
-                💡 提示：
-                <br />
-                + 表示應該<span className="font-bold">收錢</span>
-                <br />
-                - 表示應該<span className="font-bold">付錢</span>
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* 轉賬計劃 */}
-        {settlementData && settlementData.settlements.length > 0 ? (
-          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              💸 轉賬計劃
-            </h2>
-
-            <div className="space-y-3">
-              {settlementData.settlements.map((settlement, index) => (
-                <div
-                  key={index}
-                  className="p-4 bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-300 rounded-lg"
-                >
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="text-lg font-bold text-gray-900 flex-1 min-w-max">
-                      {settlement.fromName}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-2xl text-orange-600">→</span>
-                      <span className="text-2xl font-bold text-blue-600">
-                        NT$ {settlement.amount.toFixed(2)}
-                      </span>
-                      <span className="text-2xl text-orange-600">→</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-900 flex-1 text-right min-w-max">
-                      {settlement.toName}
-                    </div>
+      {settlementData && settlementData.settlements.length === 0 ? (
+        <EmptyState
+          title="目前不用結算"
+          description="所有人的已付與應付已經平衡，或還沒有可計算的支出。"
+          action={<CheckCircle2 className="mx-auto text-emerald-500" size={32} />}
+        />
+      ) : (
+        <div className="grid gap-3">
+          {settlementData?.settlements.map((settlement, index) => (
+            <Card key={`${settlement.from}-${settlement.to}-${index}`} className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <MemberAvatar name={settlement.fromName} color={memberMap.get(settlement.from)?.color} />
+                  <div>
+                    <p className="text-sm text-slate-500">付款方</p>
+                    <p className="font-bold text-slate-950">{settlement.fromName}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="font-semibold text-green-900 mb-2">✅ 完成以下轉賬即可結清：</p>
-              <ol className="space-y-2 text-sm text-green-800 list-decimal list-inside">
-                {settlementData.settlements.map((settlement, index) => (
-                  <li key={index}>
-                    <span className="font-semibold">{settlement.fromName}</span> 傳送{" "}
-                    <span className="font-bold">NT$ {settlement.amount.toFixed(2)}</span> 給{" "}
-                    <span className="font-semibold">{settlement.toName}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
-            <div className="text-center py-8">
-              <p className="text-2xl mb-2">🎉</p>
-              <p className="text-gray-600 font-semibold">
-                所有人都已結清！沒有需要轉賬的費用。
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* 操作按鈕 */}
-        <div className="mt-8 flex gap-3 justify-center">
-          <Link
-            href={`/groups/${groupId}`}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
-          >
-            回到群組
-          </Link>
-          <Link
-            href={`/groups/${groupId}/expenses`}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
-          >
-            記錄更多支出
-          </Link>
+                <div className="text-center">
+                  <ArrowRight className="mx-auto text-slate-400" size={18} />
+                  <p className="mt-1 whitespace-nowrap text-lg font-bold text-slate-950">
+                    {formatCurrency(settlement.amount)}
+                  </p>
+                </div>
+                <div className="flex min-w-0 items-center gap-3 text-right">
+                  <div>
+                    <p className="text-sm text-slate-500">收款方</p>
+                    <p className="font-bold text-slate-950">{settlement.toName}</p>
+                  </div>
+                  <MemberAvatar name={settlement.toName} color={memberMap.get(settlement.to)?.color} />
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
-      </div>
+      )}
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-slate-100 p-4">
+          <h3 className="font-bold text-slate-950">成員明細</h3>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {settlementData?.memberTotals.map((total) => {
+            const member = memberMap.get(total.memberId);
+            return (
+              <div key={total.memberId} className="grid gap-4 p-4">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <MemberAvatar name={member?.name || "Unknown"} color={member?.color} />
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-950">{member?.name || "Unknown"}</p>
+                      <Badge tone={total.netAmount > 0 ? "green" : total.netAmount < 0 ? "red" : "slate"}>
+                        {total.netAmount > 0 ? "應收" : total.netAmount < 0 ? "應付" : "已平衡"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-semibold text-slate-500">淨額</p>
+                    <AmountText value={total.netAmount} className="mt-1 block text-base sm:text-lg">
+                      {formatSignedCurrency(total.netAmount)}
+                    </AmountText>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-xs font-semibold text-slate-500">已付</p>
+                    <p className="mt-1 whitespace-nowrap text-sm font-bold tabular-nums text-slate-950">
+                      {formatCurrency(total.paidTotal)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-xs font-semibold text-slate-500">應付</p>
+                    <p className="mt-1 whitespace-nowrap text-sm font-bold tabular-nums text-slate-950">
+                      {formatCurrency(total.owedTotal)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 }
