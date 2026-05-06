@@ -84,6 +84,13 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         inviteCode: await uniqueInviteCode(),
+        members: {
+          create: {
+            name: user.displayName,
+            role: "建立者",
+            color: "bg-blue-200",
+          },
+        },
         memberships: {
           create: {
             userId: user.id,

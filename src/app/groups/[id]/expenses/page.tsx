@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
@@ -62,9 +62,9 @@ export default function ExpensesPage() {
         setMembers((membersData.data || []).filter((member: Member) => member.isActive));
       }
       if (expensesData.success) setExpenses(expensesData.data || []);
-      if (!expensesData.success) setError(expensesData.error || "無法載入支出");
+      if (!expensesData.success) setError(expensesData.error || "?⊥?頛?臬");
     } catch (err) {
-      setError("無法載入支出");
+      setError("?⊥?頛?臬");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -81,7 +81,7 @@ export default function ExpensesPage() {
   );
 
   const handleDeleteExpense = async (expenseId: string) => {
-    if (!confirm("確定要刪除這筆支出嗎？")) return;
+    if (!confirm("蝣箏?閬?日??臬??")) return;
     try {
       const response = await apiFetch(`/api/expenses/${expenseId}`, { method: "DELETE" });
       const data = await response.json();
@@ -89,15 +89,15 @@ export default function ExpensesPage() {
         await fetchData();
         window.dispatchEvent(new Event("settlemate:group-updated"));
       }
-      else setError(data.error || "刪除支出失敗");
+      else setError(data.error || "?芷?臬憭望?");
     } catch (err) {
-      setError("刪除支出失敗");
+      setError("?芷?臬憭望?");
       console.error(err);
     }
   };
 
   if (isLoading) {
-    return <Card className="p-6 text-sm text-slate-500">載入支出中...</Card>;
+    return <Card className="p-6 text-sm text-slate-500">頛?臬銝?..</Card>;
   }
 
   return (
@@ -153,7 +153,7 @@ export default function ExpensesPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => setOpenMenuId(openMenuId === expense.id ? null : expense.id)}
-                          title="支出操作"
+                          title="?臬??"
                         >
                           <MoreHorizontal size={18} />
                         </Button>
@@ -161,7 +161,7 @@ export default function ExpensesPage() {
                           <>
                             <button
                               type="button"
-                              aria-label="關閉支出操作選單"
+                              aria-label="???臬???詨"
                               className="fixed inset-0 z-10 cursor-default bg-transparent"
                               onClick={() => setOpenMenuId(null)}
                             />
@@ -172,9 +172,9 @@ export default function ExpensesPage() {
                                   setSelectedExpense(expense);
                                   setOpenMenuId(null);
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:shadow-sm focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                               >
-                                <Pencil size={15} /> 編輯
+                                <Pencil size={15} /> 蝺刻摩
                               </button>
                               <button
                                 type="button"
@@ -182,9 +182,9 @@ export default function ExpensesPage() {
                                   setOpenMenuId(null);
                                   void handleDeleteExpense(expense.id);
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:shadow-sm focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
                               >
-                                <Trash2 size={15} /> 刪除
+                                <Trash2 size={15} /> ?芷
                               </button>
                             </div>
                           </>
@@ -204,7 +204,7 @@ export default function ExpensesPage() {
                     </p>
                     <div className="flex min-w-0 items-center justify-end gap-2 text-right text-sm text-slate-500">
                       <span className="min-w-0 truncate">
-                        由 <strong className="text-slate-700">{expense.paidBy.name}</strong> 付款
+                        ??<strong className="text-slate-700">{expense.paidBy.name}</strong> 隞狡
                       </span>
                       <MemberAvatar name={expense.paidBy.name} color={expense.paidBy.color} size="sm" />
                     </div>
@@ -255,3 +255,4 @@ export default function ExpensesPage() {
     </div>
   );
 }
+

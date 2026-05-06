@@ -1,13 +1,28 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
 import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { Activity, ArrowLeft, Check, Copy, CreditCard, Plus, ReceiptText, Users, WalletCards } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  Check,
+  Copy,
+  CreditCard,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  ReceiptText,
+  Save,
+  Trash2,
+  Users,
+  WalletCards,
+  X,
+} from "lucide-react";
 import { apiFetch, getClientIdentity } from "@/lib/clientIdentity";
-import { AmountText, Button, Card, MemberAvatar } from "@/components/ui";
+import { AmountText, Button, Card, Input, MemberAvatar } from "@/components/ui";
 import { formatSignedCurrency } from "@/lib/format";
 import ExpenseModal from "./components/ExpenseModal";
 
@@ -49,6 +64,12 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [copiedInviteCode, setCopiedInviteCode] = useState(false);
+  const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
+  const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
+  const [editingGroupName, setEditingGroupName] = useState("");
+  const [groupError, setGroupError] = useState("");
+  const [isSavingGroup, setIsSavingGroup] = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
 
   const fetchData = async () => {
     const identity = getClientIdentity();
@@ -116,6 +137,62 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  const openEditGroup = () => {
+    if (!group) return;
+    setEditingGroupName(group.name);
+    setGroupError("");
+    setIsGroupMenuOpen(false);
+    setIsEditGroupOpen(true);
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!group || !editingGroupName.trim() || isSavingGroup) return;
+    setIsSavingGroup(true);
+    setGroupError("");
+    try {
+      const response = await apiFetch(`/api/groups/${group.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: editingGroupName.trim() }),
+      });
+      const data = await response.json();
+      if (!data.success) {
+        setGroupError(data.error || "更新群組失敗");
+        return;
+      }
+      setGroup({ ...group, ...data.data });
+      setIsEditGroupOpen(false);
+      window.dispatchEvent(new Event("settlemate:group-updated"));
+    } catch (error) {
+      setGroupError("更新群組失敗");
+      console.error(error);
+    } finally {
+      setIsSavingGroup(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!group || isDeletingGroup) return;
+    const confirmed = window.confirm(`確定要刪除「${group.name}」嗎？所有成員、支出與活動紀錄都會一併刪除。`);
+    if (!confirmed) return;
+    setIsDeletingGroup(true);
+    setGroupError("");
+    setIsGroupMenuOpen(false);
+    try {
+      const response = await apiFetch(`/api/groups/${group.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!data.success) {
+        setGroupError(data.error || "刪除群組失敗");
+        return;
+      }
+      router.push("/");
+    } catch (error) {
+      setGroupError("刪除群組失敗");
+      console.error(error);
+    } finally {
+      setIsDeletingGroup(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="grid min-h-screen place-items-center px-4">
@@ -148,15 +225,59 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
       <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
         <section className="mb-5">
           <Card className="p-5">
+            {groupError && (
+              <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                {groupError}
+              </div>
+            )}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-slate-950 text-white">
-                  <WalletCards size={24} />
+              <div className="flex min-w-0 items-start justify-between gap-3 sm:flex-1">
+                <div className="min-w-0">
+                  <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-slate-950 text-white">
+                    <WalletCards size={24} />
+                  </div>
+                  <h1 className="truncate text-2xl font-bold text-slate-950 sm:text-3xl">{group.name}</h1>
+                  <p className="mt-2 text-sm text-slate-500">
+                    {members.length} 位成員 · {group._count?.expenses || 0} 筆支出
+                  </p>
                 </div>
-                <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">{group.name}</h1>
-                <p className="mt-2 text-sm text-slate-500">
-                  {members.length} 位成員 · {group._count?.expenses || 0} 筆支出
-                </p>
+                <div className="relative shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsGroupMenuOpen(!isGroupMenuOpen)}
+                    title="群組操作"
+                  >
+                    <MoreHorizontal size={18} />
+                  </Button>
+                  {isGroupMenuOpen && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="關閉群組操作選單"
+                        className="fixed inset-0 z-10 cursor-default bg-transparent"
+                        onClick={() => setIsGroupMenuOpen(false)}
+                      />
+                      <div className="absolute right-0 top-11 z-20 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                        <button
+                          type="button"
+                          onClick={openEditGroup}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:shadow-sm focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                        >
+                          <Pencil size={15} /> 編輯
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteGroup()}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:shadow-sm focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                        >
+                          <Trash2 size={15} /> 刪除群組
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               <Button type="button" onClick={() => setIsExpenseModalOpen(true)}>
                 <Plus size={18} /> 新增支出
@@ -229,6 +350,57 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
         members={members}
         onExpenseAdded={fetchData}
       />
+
+      {isEditGroupOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/40 sm:items-center sm:justify-center">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-md sm:rounded-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-950">編輯群組</h2>
+                <p className="mt-1 text-sm text-slate-500">修改群組名稱，不會影響既有成員與支出。</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsEditGroupOpen(false)}
+                disabled={isSavingGroup}
+              >
+                <X size={20} />
+              </Button>
+            </div>
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">群組名稱</span>
+              <Input
+                value={editingGroupName}
+                onChange={(event) => setEditingGroupName(event.target.value)}
+                placeholder="輸入群組名稱"
+                autoFocus
+              />
+            </label>
+            <div className="mt-5 flex gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setIsEditGroupOpen(false)}
+                disabled={isSavingGroup}
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
+                onClick={() => void handleUpdateGroup()}
+                disabled={!editingGroupName.trim() || isSavingGroup}
+              >
+                <Save size={16} /> {isSavingGroup ? "儲存中..." : "儲存"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

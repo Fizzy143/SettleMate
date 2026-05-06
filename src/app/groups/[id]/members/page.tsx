@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
@@ -150,7 +150,7 @@ export default function MembersPage() {
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm("確定要停用這位成員嗎？既有支出仍會保留。")) return;
+    if (!confirm("確定要停用這位成員嗎？既有支出資料會保留。")) return;
     try {
       const response = await apiFetch(`/api/members/${memberId}`, { method: "DELETE" });
       const data = await response.json();
@@ -216,7 +216,7 @@ export default function MembersPage() {
       )}
 
       {activeMembers.length === 0 ? (
-        <EmptyState title="尚無成員" description="新增成員後，就能開始記錄支出與分攤。" />
+        <EmptyState title="尚無成員" description="新增成員後，就可以開始記錄共同支出。" />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {activeMembers.map((member) => {
@@ -301,7 +301,7 @@ export default function MembersPage() {
                                   setEditingMember(member);
                                   setOpenMenuId(null);
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:shadow-sm focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                               >
                                 <Pencil size={15} /> 編輯
                               </button>
@@ -311,7 +311,7 @@ export default function MembersPage() {
                                   setOpenMenuId(null);
                                   void handleRemoveMember(member.id);
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:shadow-sm focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
                               >
                                 <UserX size={15} /> 停用成員
                               </button>
@@ -340,3 +340,4 @@ export default function MembersPage() {
     </div>
   );
 }
+

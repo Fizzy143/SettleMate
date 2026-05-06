@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { apiFetch } from "@/lib/clientIdentity";
 import { Button, Input, MemberAvatar, Select, Textarea } from "@/components/ui";
@@ -13,7 +13,7 @@ type Props = {
   onClose: () => void;
   groupId: string;
   members: Member[];
-  onExpenseAdded: () => void;
+  onExpenseAdded: () => void | Promise<void>;
 };
 
 export default function ExpenseModal({
@@ -25,6 +25,8 @@ export default function ExpenseModal({
 }: Props) {
   const [splitType, setSplitType] = useState<"equal" | "custom">("equal");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const [expense, setExpense] = useState({
     name: "",
     amount: "",
@@ -65,18 +67,28 @@ export default function ExpenseModal({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitLockRef.current) return;
+
+    submitLockRef.current = true;
+    setIsSubmitting(true);
     setError("");
 
     if (!expense.name.trim() || !expense.amount || !expense.paidById) {
       setError("請填寫支出名稱、金額與付款者。");
+      submitLockRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     if (expense.participants.length === 0) {
       setError("請至少選擇一位分攤成員。");
+      submitLockRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     if (splitType === "custom" && Math.abs(customTotal - amount) > 0.01) {
       setError("自訂分攤金額加總必須等於支出金額。");
+      submitLockRef.current = false;
+      setIsSubmitting(false);
       return;
     }
 
@@ -100,6 +112,8 @@ export default function ExpenseModal({
       const data = await response.json();
       if (!data.success) {
         setError(data.error || "新增支出失敗。");
+        submitLockRef.current = false;
+        setIsSubmitting(false);
         return;
       }
       setExpense({
@@ -111,12 +125,15 @@ export default function ExpenseModal({
         participants: [],
       });
       setSplitType("equal");
-      onExpenseAdded();
+      await onExpenseAdded();
       window.dispatchEvent(new Event("settlemate:group-updated"));
       onClose();
     } catch (err) {
       setError("新增支出失敗。");
       console.error(err);
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -128,7 +145,7 @@ export default function ExpenseModal({
             <h2 className="text-xl font-bold text-slate-950">新增支出</h2>
             <p className="mt-1 text-sm text-slate-500">記錄誰先付款，以及要由哪些人分攤。</p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} disabled={isSubmitting}>
             <X size={20} />
           </Button>
         </div>
@@ -252,11 +269,11 @@ export default function ExpenseModal({
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={isSubmitting}>
               取消
             </Button>
-            <Button type="submit" className="flex-1">
-              儲存支出
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? "新增中..." : "儲存支出"}
             </Button>
           </div>
         </form>
