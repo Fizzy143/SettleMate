@@ -27,6 +27,7 @@ export type Expense = {
   name: string;
   amount: number;
   paidById: string;
+  kind: "expense" | "settlement";
   notes?: string | null;
   createdAt: Date;
   updatedAt: Date;

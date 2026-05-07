@@ -74,6 +74,7 @@ model Expense {
   name      String
   amount    Float
   paidById  String
+  kind      String   @default("expense")
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -83,6 +84,7 @@ model Expense {
   participants ExpenseParticipant[]
 
   @@index([groupId])
+  @@index([groupId, kind])
   @@index([paidById])
   @@map("expenses")
 }

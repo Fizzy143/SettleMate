@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { round } from "@/lib/calculations";
+import { validateAmount, validateParticipantAmount } from "@/lib/money";
 import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
 import { ApiResponse } from "@/types";
 
@@ -35,8 +36,14 @@ function resolveParticipantAmounts(
 
   const participantAmounts = participants.map((participant) => ({
     memberId: participant.memberId,
-    amount: round(participant.amount || 0, 2),
+    amount: round(Number(participant.amount ?? 0), 2),
   }));
+  const invalidParticipant = participantAmounts.find((participant) =>
+    validateParticipantAmount(participant.amount)
+  );
+  if (invalidParticipant) {
+    throw new Error("Participant amount must be between 0 and 1000000");
+  }
   const total = participantAmounts.reduce((sum, participant) => sum + participant.amount, 0);
   if (Math.abs(total - amount) > 0.01) {
     throw new Error("Sum of participant amounts must equal total amount");
@@ -79,9 +86,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: ExpensePayload = await request.json();
-    const { groupId, date, name, amount, paidById, notes, splitType, participants } = body;
+    const { groupId, date, name, paidById, notes, splitType, participants } = body;
+    const amount = round(Number(body.amount), 2);
 
-    if (!groupId || !date || !name || !amount || !paidById || !participants?.length) {
+    if (!groupId || !date || !name || body.amount === undefined || !paidById || !participants?.length) {
       return NextResponse.json<ApiResponse<unknown>>(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -93,9 +101,10 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    if (amount <= 0) {
+    const amountError = validateAmount(amount);
+    if (amountError) {
       return NextResponse.json<ApiResponse<unknown>>(
-        { success: false, error: "Amount must be greater than 0" },
+        { success: false, error: amountError },
         { status: 400 }
       );
     }

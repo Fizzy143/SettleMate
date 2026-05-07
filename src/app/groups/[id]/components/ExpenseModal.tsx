@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { apiFetch } from "@/lib/clientIdentity";
 import { Button, Input, MemberAvatar, Select, Textarea } from "@/components/ui";
 import { formatCurrency } from "@/lib/format";
+import { MAX_AMOUNT, validateAmount, validateParticipantAmount } from "@/lib/money";
 
 type Member = { id: string; name: string; color?: string | null };
 
@@ -81,6 +82,22 @@ export default function ExpenseModal({
     }
     if (expense.participants.length === 0) {
       setError("請至少選擇一位分攤成員。");
+      submitLockRef.current = false;
+      setIsSubmitting(false);
+      return;
+    }
+    const amountError = validateAmount(amount);
+    if (amountError) {
+      setError(amountError);
+      submitLockRef.current = false;
+      setIsSubmitting(false);
+      return;
+    }
+    const invalidParticipant = expense.participants.find((participant) =>
+      validateParticipantAmount(participant.amount || 0)
+    );
+    if (splitType === "custom" && invalidParticipant) {
+      setError("分攤金額不可為負數，且不可超過 NT$ 1,000,000。");
       submitLockRef.current = false;
       setIsSubmitting(false);
       return;
@@ -171,6 +188,9 @@ export default function ExpenseModal({
               <Input
                 type="number"
                 inputMode="decimal"
+                min="0"
+                max={MAX_AMOUNT}
+                step="1"
                 value={expense.amount}
                 onChange={(event) => setExpense({ ...expense, amount: event.target.value })}
                 placeholder="0"
@@ -257,6 +277,9 @@ export default function ExpenseModal({
                         className="mt-3"
                         type="number"
                         inputMode="decimal"
+                        min="0"
+                        max={MAX_AMOUNT}
+                        step="1"
                         placeholder="分攤金額"
                         value={expense.participants.find((participant) => participant.memberId === member.id)?.amount || ""}
                         onChange={(event) => updateParticipantAmount(member.id, event.target.value)}

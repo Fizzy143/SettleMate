@@ -187,5 +187,9 @@ export function AmountText({
 }) {
   const color =
     value > 0 ? "text-emerald-600" : value < 0 ? "text-rose-600" : "text-slate-500";
-  return <span className={`font-bold tabular-nums ${color} ${className}`}>{children}</span>;
+  return (
+    <span className={`inline-block max-w-full break-words font-bold tabular-nums ${color} ${className}`}>
+      {children}
+    </span>
+  );
 }

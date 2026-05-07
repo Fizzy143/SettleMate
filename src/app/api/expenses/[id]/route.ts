@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { round } from "@/lib/calculations";
+import { validateAmount, validateParticipantAmount } from "@/lib/money";
 import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
 import { ApiResponse } from "@/types";
 
@@ -17,7 +18,7 @@ type UpdateExpenseRequest = {
 async function getExpenseWithAccess(request: NextRequest, id: string) {
   const expense = await prisma.expense.findUnique({
     where: { id },
-    include: { paidBy: true },
+    include: { paidBy: true, participants: { include: { member: true } } },
   });
   if (!expense) return null;
   const allowed = await canAccessGroup(getUserId(request), expense.groupId);
@@ -39,8 +40,14 @@ function resolveParticipantAmounts(
   }
   const participantAmounts = participants.map((participant) => ({
     memberId: participant.memberId,
-    amount: round(participant.amount || 0, 2),
+    amount: round(Number(participant.amount ?? 0), 2),
   }));
+  const invalidParticipant = participantAmounts.find((participant) =>
+    validateParticipantAmount(participant.amount)
+  );
+  if (invalidParticipant) {
+    throw new Error("Participant amount must be between 0 and 1000000");
+  }
   const total = participantAmounts.reduce((sum, participant) => sum + participant.amount, 0);
   if (Math.abs(total - amount) > 0.01) {
     throw new Error("Sum of participant amounts must equal total amount");
@@ -88,15 +95,29 @@ export async function PUT(
         { status: 404 }
       );
     }
+    if (existingExpense.kind === "settlement") {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Settlement payments cannot be edited" },
+        { status: 400 }
+      );
+    }
 
     const body: UpdateExpenseRequest = await request.json();
-    const amount = body.amount || existingExpense.amount;
+    const amount =
+      body.amount === undefined ? existingExpense.amount : round(Number(body.amount), 2);
+    const amountError = validateAmount(amount);
+    if (amountError) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: amountError },
+        { status: 400 }
+      );
+    }
     const splitType = body.splitType || "custom";
     let participantAmounts:
       | Array<{ memberId: string; amount: number }>
       | undefined;
 
-    if (body.amount || body.splitType || body.participants) {
+    if (body.amount !== undefined || body.splitType || body.participants) {
       if (!body.participants?.length) {
         return NextResponse.json<ApiResponse<unknown>>(
           { success: false, error: "Participants are required" },
@@ -118,7 +139,7 @@ export async function PUT(
       data: {
         ...(body.date && { date: new Date(body.date) }),
         ...(body.name && { name: body.name.trim() }),
-        ...(body.amount && { amount: round(body.amount, 2) }),
+        ...(body.amount !== undefined && { amount }),
         ...(body.paidById && { paidById: body.paidById }),
         ...(body.notes !== undefined && { notes: body.notes?.trim() || null }),
         ...(participantAmounts && {
@@ -172,9 +193,12 @@ export async function DELETE(
       .create({
         data: {
           groupId: expense.groupId,
-          actionType: "delete_expense",
+          actionType: expense.kind === "settlement" ? "delete_settlement" : "delete_expense",
           actionBy: getDisplayName(request),
-          content: `Deleted expense "${expense.name}"`,
+          content:
+            expense.kind === "settlement"
+              ? `Deleted repayment "${expense.name}"`
+              : `Deleted expense "${expense.name}"`,
         },
       })
       .catch((logError) => console.error("Failed to create activity log:", logError));
