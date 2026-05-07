@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { round } from "@/lib/calculations";
-import { canAccessGroup, getUserId } from "@/lib/serverIdentity";
+import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
 import { ApiResponse } from "@/types";
 
 type ExpensePayload = {
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
         data: {
           groupId,
           actionType: "add_expense",
-          actionBy: expense.paidBy.name,
+          actionBy: getDisplayName(request),
           content: `Added expense "${expense.name}" for NT$${expense.amount.toFixed(2)}`,
         },
       })

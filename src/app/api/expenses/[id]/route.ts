@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { round } from "@/lib/calculations";
-import { canAccessGroup, getUserId } from "@/lib/serverIdentity";
+import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
 import { ApiResponse } from "@/types";
 
 type UpdateExpenseRequest = {
@@ -136,7 +136,7 @@ export async function PUT(
         data: {
           groupId: existingExpense.groupId,
           actionType: "edit_expense",
-          actionBy: expense.paidBy.name,
+          actionBy: getDisplayName(request),
           content: `Updated expense "${expense.name}" for NT$${expense.amount.toFixed(2)}`,
         },
       })
@@ -173,7 +173,7 @@ export async function DELETE(
         data: {
           groupId: expense.groupId,
           actionType: "delete_expense",
-          actionBy: expense.paidBy.name,
+          actionBy: getDisplayName(request),
           content: `Deleted expense "${expense.name}"`,
         },
       })
