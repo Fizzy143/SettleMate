@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -13,8 +13,33 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  applicationName: "SettleMate",
   title: "SettleMate - 朋友分帳工具",
-  description: "建立群組、記錄共同支出，快速算出朋友之間該怎麼結清。",
+  description: "建立群組、邀請朋友、記錄支出，最後用最少筆轉帳結清。",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "SettleMate",
+    statusBarStyle: "default",
+    startupImage: "/assets/app-cover-settlemate-style.png",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/assets/app-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/assets/app-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/assets/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f8fafc",
+  colorScheme: "light",
 };
 
 export default function RootLayout({
