@@ -29,6 +29,7 @@ export default function ExpenseModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
   const errorRef = useRef<HTMLDivElement>(null);
+  const formContainerRef = useRef<HTMLDivElement>(null);
   const [expense, setExpense] = useState({
     name: "",
     amount: "",
@@ -47,9 +48,9 @@ export default function ExpenseModal({
   if (!isOpen) return null;
 
   const scrollToError = () => {
-    if (errorRef.current) {
+    if (formContainerRef.current) {
       setTimeout(() => {
-        errorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        formContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       }, 0);
     }
   };
@@ -172,7 +173,7 @@ export default function ExpenseModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-slate-950/40 sm:items-center sm:justify-center">
-      <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-2xl sm:rounded-2xl">
+      <div ref={formContainerRef} className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-2xl sm:rounded-2xl">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-950">新增支出</h2>
