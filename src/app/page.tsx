@@ -62,8 +62,11 @@ export default function Home() {
 
   const handleSaveIdentity = async (event: FormEvent) => {
     event.preventDefault();
-    if (!displayName.trim()) return;
-    const nextIdentity = saveClientIdentity(displayName);
+    const form = event.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+    const submittedName = String(formData.get("displayName") || displayName).trim();
+    if (!submittedName) return;
+    const nextIdentity = saveClientIdentity(submittedName);
     setIdentity(nextIdentity);
     await apiFetch("/api/users", { method: "POST" });
     await fetchGroups();
@@ -147,12 +150,13 @@ export default function Home() {
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-slate-700">用戶名稱</span>
                 <Input
+                  name="displayName"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
                   placeholder="例如：Fizzy"
                 />
               </label>
-              <Button type="submit" className="w-full" disabled={!displayName.trim()}>
+              <Button type="submit" className="w-full">
                 建立本機身份 <ArrowRight size={18} />
               </Button>
             </form>

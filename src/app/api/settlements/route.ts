@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { buildExpenseActivityDetail, serializeActivityContent } from "@/lib/activity";
 import { calculateMemberTotals, calculateSettlements, round } from "@/lib/calculations";
 import { validateAmount } from "@/lib/money";
 import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
@@ -163,7 +164,10 @@ export async function POST(request: NextRequest) {
           groupId,
           actionType: "add_settlement",
           actionBy: getDisplayName(request),
-          content: `${fromMember.name} recorded repayment to ${toMember.name} for NT$${amount.toFixed(2)}`,
+          content: serializeActivityContent(
+            `新增還款「${fromMember.name} 還給 ${toMember.name}」`,
+            buildExpenseActivityDetail(payment)
+          ),
         },
       })
       .catch((logError) => console.error("Failed to create activity log:", logError));

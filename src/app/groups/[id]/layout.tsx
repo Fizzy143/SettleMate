@@ -43,6 +43,7 @@ type Group = {
   name: string;
   inviteCode?: string | null;
   _count?: { expenses: number };
+  currentUserRole?: string | null;
 };
 
 const navItems = [
@@ -70,6 +71,7 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
   const [groupError, setGroupError] = useState("");
   const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const canManageGroup = group?.currentUserRole === "owner";
 
   const fetchData = async () => {
     const identity = getClientIdentity();
@@ -138,7 +140,7 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
   };
 
   const openEditGroup = () => {
-    if (!group) return;
+    if (!group || !canManageGroup) return;
     setEditingGroupName(group.name);
     setGroupError("");
     setIsGroupMenuOpen(false);
@@ -146,7 +148,7 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
   };
 
   const handleUpdateGroup = async () => {
-    if (!group || !editingGroupName.trim() || isSavingGroup) return;
+    if (!group || !canManageGroup || !editingGroupName.trim() || isSavingGroup) return;
     setIsSavingGroup(true);
     setGroupError("");
     try {
@@ -171,7 +173,7 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
   };
 
   const handleDeleteGroup = async () => {
-    if (!group || isDeletingGroup) return;
+    if (!group || !canManageGroup || isDeletingGroup) return;
     const confirmed = window.confirm(`確定要刪除「${group.name}」嗎？所有成員、支出與活動紀錄都會一併刪除。`);
     if (!confirmed) return;
     setIsDeletingGroup(true);
@@ -241,43 +243,45 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
                     {members.length} 位成員 · {group._count?.expenses || 0} 筆支出
                   </p>
                 </div>
-                <div className="relative shrink-0">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsGroupMenuOpen(!isGroupMenuOpen)}
-                    title="群組操作"
-                  >
-                    <MoreHorizontal size={18} />
-                  </Button>
-                  {isGroupMenuOpen && (
-                    <>
-                      <button
-                        type="button"
-                        aria-label="關閉群組操作選單"
-                        className="fixed inset-0 z-10 cursor-default bg-transparent"
-                        onClick={() => setIsGroupMenuOpen(false)}
-                      />
-                      <div className="absolute right-0 top-11 z-20 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                {canManageGroup && (
+                  <div className="relative shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsGroupMenuOpen(!isGroupMenuOpen)}
+                      title="群組操作"
+                    >
+                      <MoreHorizontal size={18} />
+                    </Button>
+                    {isGroupMenuOpen && (
+                      <>
                         <button
                           type="button"
-                          onClick={openEditGroup}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:shadow-sm focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                        >
-                          <Pencil size={15} /> 編輯
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteGroup()}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:shadow-sm focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                        >
-                          <Trash2 size={15} /> 刪除群組
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                          aria-label="關閉群組操作選單"
+                          className="fixed inset-0 z-10 cursor-default bg-transparent"
+                          onClick={() => setIsGroupMenuOpen(false)}
+                        />
+                        <div className="absolute right-0 top-11 z-20 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                          <button
+                            type="button"
+                            onClick={openEditGroup}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:shadow-sm focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                          >
+                            <Pencil size={15} /> 編輯
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteGroup()}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:shadow-sm focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                          >
+                            <Trash2 size={15} /> 刪除群組
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <Button type="button" onClick={() => setIsExpenseModalOpen(true)}>
                 <Plus size={18} /> 新增支出

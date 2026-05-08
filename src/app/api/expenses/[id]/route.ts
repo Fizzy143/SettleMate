@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { buildExpenseActivityDetail, serializeActivityContent } from "@/lib/activity";
 import { round } from "@/lib/calculations";
 import { validateAmount, validateParticipantAmount } from "@/lib/money";
 import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
@@ -158,7 +159,10 @@ export async function PUT(
           groupId: existingExpense.groupId,
           actionType: "edit_expense",
           actionBy: getDisplayName(request),
-          content: `Updated expense "${expense.name}" for NT$${expense.amount.toFixed(2)}`,
+          content: serializeActivityContent(
+            `編輯支出「${expense.name}」`,
+            buildExpenseActivityDetail(expense)
+          ),
         },
       })
       .catch((logError) => console.error("Failed to create activity log:", logError));
@@ -195,10 +199,12 @@ export async function DELETE(
           groupId: expense.groupId,
           actionType: expense.kind === "settlement" ? "delete_settlement" : "delete_expense",
           actionBy: getDisplayName(request),
-          content:
+          content: serializeActivityContent(
             expense.kind === "settlement"
-              ? `Deleted repayment "${expense.name}"`
-              : `Deleted expense "${expense.name}"`,
+              ? `刪除還款「${expense.name}」`
+              : `刪除支出「${expense.name}」`,
+            buildExpenseActivityDetail(expense)
+          ),
         },
       })
       .catch((logError) => console.error("Failed to create activity log:", logError));

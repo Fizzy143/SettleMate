@@ -38,6 +38,19 @@ export async function canAccessGroup(userId: string | null, groupId: string) {
   return Boolean(membership);
 }
 
+export async function getGroupRole(userId: string | null, groupId: string) {
+  if (!userId) return null;
+  const membership = await prisma.groupMembership.findUnique({
+    where: { userId_groupId: { userId, groupId } },
+    select: { role: true },
+  });
+  return membership?.role || null;
+}
+
+export async function isGroupOwner(userId: string | null, groupId: string) {
+  return (await getGroupRole(userId, groupId)) === "owner";
+}
+
 export function createInviteCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";

@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { parseActivityContent } from "@/lib/activity";
 import { canAccessGroup, getUserId } from "@/lib/serverIdentity";
 
 export async function GET(request: NextRequest) {
@@ -24,7 +25,13 @@ export async function GET(request: NextRequest) {
       take: 100,
     });
 
-    return NextResponse.json({ success: true, data: activityLogs });
+    return NextResponse.json({
+      success: true,
+      data: activityLogs.map((log) => ({
+        ...log,
+        ...parseActivityContent(log.content),
+      })),
+    });
   } catch (error) {
     console.error("GET /api/activity error:", error);
     return NextResponse.json(

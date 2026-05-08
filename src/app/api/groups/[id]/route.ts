@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { canAccessGroup, getUserId } from "@/lib/serverIdentity";
+import { canAccessGroup, getGroupRole, getUserId, isGroupOwner } from "@/lib/serverIdentity";
 import { ApiResponse } from "@/types";
 
 async function requireGroupAccess(request: NextRequest, groupId: string) {
@@ -46,7 +46,12 @@ export async function GET(
       );
     }
 
-    return NextResponse.json<ApiResponse<unknown>>({ success: true, data: group });
+    const currentUserRole = await getGroupRole(getUserId(request), id);
+
+    return NextResponse.json<ApiResponse<unknown>>({
+      success: true,
+      data: { ...group, currentUserRole },
+    });
   } catch (error) {
     console.error("Error fetching group:", error);
     return NextResponse.json<ApiResponse<unknown>>(
@@ -66,6 +71,12 @@ export async function PUT(
       return NextResponse.json<ApiResponse<unknown>>(
         { success: false, error: "Group not found" },
         { status: 404 }
+      );
+    }
+    if (!(await isGroupOwner(getUserId(request), id))) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Only the group owner can edit this group" },
+        { status: 403 }
       );
     }
 
@@ -103,6 +114,12 @@ export async function DELETE(
       return NextResponse.json<ApiResponse<unknown>>(
         { success: false, error: "Group not found" },
         { status: 404 }
+      );
+    }
+    if (!(await isGroupOwner(getUserId(request), id))) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Only the group owner can delete this group" },
+        { status: 403 }
       );
     }
 

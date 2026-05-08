@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { ReactNode } from "react";
+import { ChangeEvent, ReactNode } from "react";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
@@ -73,11 +75,23 @@ export function Card({
   );
 }
 
-export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+export function Input({
+  className = "",
+  onChange,
+  onInput,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
+  const handleInput = (event: React.FormEvent<HTMLInputElement>) => {
+    onInput?.(event as Parameters<NonNullable<typeof onInput>>[0]);
+    onChange?.(event as ChangeEvent<HTMLInputElement>);
+  };
+
   return (
     <input
       {...props}
-      className={`h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-slate-100 ${props.className || ""}`}
+      onChange={onChange}
+      onInput={handleInput}
+      className={`h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-4 focus:ring-slate-100 ${className}`}
     />
   );
 }

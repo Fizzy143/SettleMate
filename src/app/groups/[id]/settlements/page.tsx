@@ -3,6 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowRight, CheckCircle2, CreditCard, Save, Trash2, X } from "lucide-react";
 import { apiFetch } from "@/lib/clientIdentity";
@@ -249,30 +250,32 @@ export default function SettlementsPage() {
         <div className="grid gap-3">
           {settlementData?.settlements.map((settlement, index) => (
             <Card key={`${settlement.from}-${settlement.to}-${index}`} className="p-4">
-              <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center">
-                <div className="flex min-w-0 items-center gap-3">
-                  <MemberAvatar name={settlement.fromName} color={memberMap.get(settlement.from)?.color} />
-                  <div>
-                    <p className="text-sm text-slate-500">付款方</p>
-                    <p className="font-bold text-slate-950">{settlement.fromName}</p>
+              <div className="grid gap-4">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(4.5rem,auto)_minmax(0,1fr)] items-center gap-2 sm:gap-4">
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <MemberAvatar name={settlement.fromName} color={memberMap.get(settlement.from)?.color} />
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-500">付款方</p>
+                      <p className="truncate font-bold text-slate-950">{settlement.fromName}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-center">
-                  <ArrowRight className="mx-auto text-slate-400" size={18} />
-                  <p className="mt-1 max-w-full break-words text-lg font-bold text-slate-950">
-                    {formatCurrency(settlement.amount)}
-                  </p>
-                </div>
-                <div className="flex min-w-0 items-center gap-3 sm:justify-end sm:text-right">
-                  <div>
-                    <p className="text-sm text-slate-500">收款方</p>
-                    <p className="font-bold text-slate-950">{settlement.toName}</p>
+                  <div className="min-w-0 text-center">
+                    <ArrowRight className="mx-auto text-slate-400" size={18} />
+                    <p className="mt-1 max-w-full break-words text-base font-bold text-slate-950 sm:text-lg">
+                      {formatCurrency(settlement.amount)}
+                    </p>
                   </div>
-                  <MemberAvatar name={settlement.toName} color={memberMap.get(settlement.to)?.color} />
+                  <div className="flex min-w-0 items-center justify-end gap-2 text-right sm:gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-500">收款方</p>
+                      <p className="truncate font-bold text-slate-950">{settlement.toName}</p>
+                    </div>
+                    <MemberAvatar name={settlement.toName} color={memberMap.get(settlement.to)?.color} />
+                  </div>
                 </div>
                 <Button
                   type="button"
-                  className="w-full whitespace-nowrap px-4 sm:w-auto"
+                  className="w-full whitespace-nowrap px-4 sm:justify-self-end"
                   onClick={() => setSelectedSettlement(settlement)}
                 >
                   <CreditCard size={16} />
@@ -333,7 +336,12 @@ export default function SettlementsPage() {
           {settlementData?.memberTotals.map((total) => {
             const member = memberMap.get(total.memberId);
             return (
-              <div key={total.memberId} className="grid gap-4 p-4">
+              <Link
+                key={total.memberId}
+                href={`/groups/${groupId}/members/${total.memberId}`}
+                className="grid gap-4 p-4 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                aria-label={`查看 ${member?.name || "Unknown"} 的個人詳細交易資料`}
+              >
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <MemberAvatar name={member?.name || "Unknown"} color={member?.color} />
@@ -365,7 +373,7 @@ export default function SettlementsPage() {
                     </p>
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
