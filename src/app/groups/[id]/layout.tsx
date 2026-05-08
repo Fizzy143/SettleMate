@@ -2,7 +2,7 @@
 
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
-import { ReactNode, useEffect, useState } from "react";
+import { PointerEvent, ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import {
@@ -53,6 +53,17 @@ const navItems = [
   { href: "activity", label: "活動", icon: Activity },
 ];
 
+const SWIPE_MIN_DISTANCE = 72;
+const SWIPE_MAX_OFF_AXIS_DISTANCE = 84;
+const SWIPE_EDGE_GUTTER = 18;
+
+type SwipeStart = {
+  pointerId: number;
+  x: number;
+  y: number;
+  ignore: boolean;
+};
+
 export default function GroupLayout({ children }: { children: ReactNode }) {
   const params = useParams();
   const pathname = usePathname();
@@ -71,7 +82,12 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
   const [groupError, setGroupError] = useState("");
   const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const swipeStartRef = useRef<SwipeStart | null>(null);
   const canManageGroup = group?.currentUserRole === "owner";
+  const activeNavIndex = navItems.findIndex((item) => {
+    const href = `/groups/${groupId}/${item.href}`;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  });
 
   const fetchData = async () => {
     const identity = getClientIdentity();
@@ -118,6 +134,59 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
     window.addEventListener("settlemate:group-updated", handler);
     return () => window.removeEventListener("settlemate:group-updated", handler);
   }, [groupId]);
+
+  useEffect(() => {
+    navItems.forEach((item) => router.prefetch(`/groups/${groupId}/${item.href}`));
+  }, [groupId, router]);
+
+  const shouldIgnoreSwipeTarget = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return true;
+    return Boolean(
+      target.closest(
+        "button, input, select, textarea, [role='button'], [data-swipe-ignore='true']"
+      )
+    );
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (!event.isPrimary) return;
+
+    const viewportWidth = window.innerWidth;
+    const startsOnSystemEdge =
+      event.clientX < SWIPE_EDGE_GUTTER || event.clientX > viewportWidth - SWIPE_EDGE_GUTTER;
+
+    swipeStartRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      ignore:
+        viewportWidth >= 640 ||
+        activeNavIndex < 0 ||
+        startsOnSystemEdge ||
+        shouldIgnoreSwipeTarget(event.target),
+    };
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
+    const swipeStart = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!swipeStart || swipeStart.ignore || swipeStart.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - swipeStart.x;
+    const deltaY = event.clientY - swipeStart.y;
+    const isHorizontalSwipe =
+      Math.abs(deltaX) >= SWIPE_MIN_DISTANCE &&
+      Math.abs(deltaY) <= SWIPE_MAX_OFF_AXIS_DISTANCE &&
+      Math.abs(deltaX) > Math.abs(deltaY) * 1.4;
+
+    if (!isHorizontalSwipe) return;
+
+    const nextIndex = deltaX < 0 ? activeNavIndex + 1 : activeNavIndex - 1;
+    const nextItem = navItems[nextIndex];
+    if (!nextItem) return;
+
+    router.push(`/groups/${groupId}/${nextItem.href}`);
+  };
 
   const getMemberNetAmount = (memberId: string) => {
     return memberTotals.find((total) => total.memberId === memberId)?.netAmount || 0;
@@ -291,7 +360,7 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
         </section>
 
         <Card className="mb-5 overflow-hidden">
-          <div className="flex gap-3 overflow-x-auto p-4">
+          <div className="flex gap-3 overflow-x-auto p-4" data-swipe-ignore="true">
             {members.length === 0 ? (
               <p className="text-sm text-slate-500">尚未新增分帳成員。</p>
             ) : (
@@ -315,7 +384,7 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
           </div>
         </Card>
 
-        <nav className="mb-5 grid grid-cols-4 gap-2 rounded-xl bg-white p-2 shadow-sm">
+        <nav className="mb-5 grid grid-cols-4 gap-2 rounded-xl bg-white p-2 shadow-sm" data-swipe-ignore="true">
           {navItems.map((item) => {
             const Icon = item.icon;
             const href = `/groups/${groupId}/${item.href}`;
@@ -335,7 +404,29 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        {children}
+        <div
+          className="touch-pan-y"
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={() => {
+            swipeStartRef.current = null;
+          }}
+        >
+          {children}
+        </div>
+
+        {activeNavIndex >= 0 && (
+          <div className="mt-5 flex justify-center gap-2 sm:hidden" aria-hidden="true">
+            {navItems.map((item, index) => (
+              <span
+                key={item.href}
+                className={`h-1.5 rounded-full transition-all ${
+                  index === activeNavIndex ? "w-6 bg-slate-950" : "w-1.5 bg-slate-300"
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </main>
 
       <Button
