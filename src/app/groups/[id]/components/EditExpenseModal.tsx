@@ -54,6 +54,7 @@ export default function EditExpenseModal({
     [form.participants]
   );
 
+  if (!isOpen) return null;
 
   const scrollToError = () => {
     if (errorRef.current) {
@@ -62,7 +63,6 @@ export default function EditExpenseModal({
       }, 0);
     }
   };
-  if (!isOpen) return null;
 
   const toggleParticipant = (memberId: string) => {
     const exists = form.participants.some((participant) => participant.memberId === memberId);
@@ -82,7 +82,15 @@ export default function EditExpenseModal({
           ? { ...participant, amount: value ? parseFloat(value) : undefined }
           : participant
       ),
-    })scrollToError();
+    });
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    if (!form.name.trim() || !form.amount || !form.paidById) {
+      setError("請填寫支出名稱、金額與付款者。");
+      scrollToError();
       return;
     }
     if (form.participants.length === 0) {
@@ -137,15 +145,7 @@ export default function EditExpenseModal({
       onClose();
     } catch (err) {
       setError("更新支出失敗。");
-      scrollToError( {
-        setError(data.error || "更新支出失敗。");
-        return;
-      }
-      onExpenseUpdated();
-      window.dispatchEvent(new Event("settlemate:group-updated"));
-      onClose();
-    } catch (err) {
-      setError("更新支出失敗。");
+      scrollToError();
       console.error(err);
     }
   };
@@ -157,14 +157,14 @@ export default function EditExpenseModal({
           <div>
             <h2 className="text-xl font-bold text-slate-950">編輯支出</h2>
             <p className="mt-1 text-sm text-slate-500">更新付款者、金額或分攤方式。</p>
-          </divref={errorRef} >
+          </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X size={20} />
           </Button>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          <div ref={errorRef} className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
             {error}
           </div>
         )}
