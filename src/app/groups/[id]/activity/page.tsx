@@ -109,38 +109,41 @@ export default function ActivityPage() {
               </button>
 
               {log.detail && expandedLogId === log.id && (
-                <div className="mt-4 border-t border-slate-100 pt-4">
-                  <div className="rounded-lg bg-slate-50 px-3 py-3">
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-sm">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-500">項目</p>
-                        <p className="mt-1 truncate font-bold text-slate-950">{log.detail.title}</p>
-                      </div>
-                      <div className="min-w-0 text-right">
-                        <p className="text-xs font-semibold text-slate-500">金額</p>
-                        <p className="mt-1 break-words font-bold tabular-nums text-slate-950">
-                          {log.detail.amount}
-                        </p>
-                      </div>
+                <div className="mt-4 border-t border-slate-100 pt-4 space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-500">項目</p>
+                      <p className="mt-1 truncate text-sm font-bold text-slate-950">{log.detail.title}</p>
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                      <span className="text-slate-500">
-                        日期 <strong className="font-bold text-slate-950">{log.detail.date}</strong>
-                      </span>
-                      <span className="text-slate-500">
-                        {log.detail.paidByLabel}{" "}
-                        <strong className="font-bold text-slate-950">{log.detail.paidByName}</strong>
-                      </span>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-500">金額</p>
+                      <p className="mt-1 break-words text-sm font-bold tabular-nums text-slate-950">
+                        {log.detail.amount}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-500">日期</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">{log.detail.date}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-500">{log.detail.paidByLabel}</p>
+                      <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+                        {log.detail.paidByName}
+                      </p>
                     </div>
                   </div>
 
                   {log.detail.notes && (
-                    <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                      {log.detail.notes}
-                    </p>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-500">備註</p>
+                      <p className="mt-1 text-sm text-slate-600">{log.detail.notes}</p>
+                    </div>
                   )}
 
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {log.detail.participants.map((participant, index) => (
                       <div
                         key={`${log.id}-${participant.name}-${index}`}
@@ -148,9 +151,12 @@ export default function ActivityPage() {
                       >
                         <div className="flex min-w-0 items-center gap-2">
                           <MemberAvatar name={participant.name} size="sm" />
-                          <span className="truncate text-sm font-semibold text-slate-700">
-                            {participant.label}：{participant.name}
-                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-500">{participant.label}</p>
+                            <p className="truncate text-sm font-semibold text-slate-950">
+                              {participant.name}
+                            </p>
+                          </div>
                         </div>
                         <p className="shrink-0 text-sm font-bold tabular-nums text-slate-950">
                           {participant.amount}

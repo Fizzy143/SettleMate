@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { apiFetch } from "@/lib/clientIdentity";
 import { Button, Input, MemberAvatar, Select, Textarea } from "@/components/ui";
@@ -35,6 +35,7 @@ export default function EditExpenseModal({
 }: EditExpenseModalProps) {
   const [splitType, setSplitType] = useState<"equal" | "custom">("custom");
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState({
     name: expense.name,
     amount: String(expense.amount),
@@ -53,6 +54,14 @@ export default function EditExpenseModal({
     [form.participants]
   );
 
+
+  const scrollToError = () => {
+    if (errorRef.current) {
+      setTimeout(() => {
+        errorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+    }
+  };
   if (!isOpen) return null;
 
   const toggleParticipant = (memberId: string) => {
@@ -73,23 +82,18 @@ export default function EditExpenseModal({
           ? { ...participant, amount: value ? parseFloat(value) : undefined }
           : participant
       ),
-    });
-  };
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setError("");
-    if (!form.name.trim() || !form.amount || !form.paidById) {
-      setError("請填寫支出名稱、金額與付款者。");
+    })scrollToError();
       return;
     }
     if (form.participants.length === 0) {
       setError("請至少選擇一位分攤成員。");
+      scrollToError();
       return;
     }
     const amountError = validateAmount(amount);
     if (amountError) {
       setError(amountError);
+      scrollToError();
       return;
     }
     const invalidParticipant = form.participants.find((participant) =>
@@ -97,10 +101,12 @@ export default function EditExpenseModal({
     );
     if (splitType === "custom" && invalidParticipant) {
       setError("分攤金額不可為負數，且不可超過 NT$ 1,000,000。");
+      scrollToError();
       return;
     }
     if (splitType === "custom" && Math.abs(customTotal - amount) > 0.01) {
       setError("自訂分攤金額加總必須等於支出金額。");
+      scrollToError();
       return;
     }
 
@@ -123,6 +129,16 @@ export default function EditExpenseModal({
       const data = await response.json();
       if (!data.success) {
         setError(data.error || "更新支出失敗。");
+        scrollToError();
+        return;
+      }
+      onExpenseUpdated();
+      window.dispatchEvent(new Event("settlemate:group-updated"));
+      onClose();
+    } catch (err) {
+      setError("更新支出失敗。");
+      scrollToError( {
+        setError(data.error || "更新支出失敗。");
         return;
       }
       onExpenseUpdated();
@@ -141,7 +157,7 @@ export default function EditExpenseModal({
           <div>
             <h2 className="text-xl font-bold text-slate-950">編輯支出</h2>
             <p className="mt-1 text-sm text-slate-500">更新付款者、金額或分攤方式。</p>
-          </div>
+          </divref={errorRef} >
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X size={20} />
           </Button>
