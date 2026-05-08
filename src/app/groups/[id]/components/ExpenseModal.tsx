@@ -28,6 +28,7 @@ export default function ExpenseModal({
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
+  const errorRef = useRef<HTMLDivElement>(null);
   const [expense, setExpense] = useState({
     name: "",
     amount: "",
@@ -44,6 +45,14 @@ export default function ExpenseModal({
   const amount = parseFloat(expense.amount || "0");
 
   if (!isOpen) return null;
+
+  const scrollToError = () => {
+    if (errorRef.current) {
+      setTimeout(() => {
+        errorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+    }
+  };
 
   const toggleParticipant = (memberId: string) => {
     const exists = expense.participants.some((participant) => participant.memberId === memberId);
@@ -76,12 +85,14 @@ export default function ExpenseModal({
 
     if (!expense.name.trim() || !expense.amount || !expense.paidById) {
       setError("請填寫支出名稱、金額與付款者。");
+      scrollToError();
       submitLockRef.current = false;
       setIsSubmitting(false);
       return;
     }
     if (expense.participants.length === 0) {
       setError("請至少選擇一位分攤成員。");
+      scrollToError();
       submitLockRef.current = false;
       setIsSubmitting(false);
       return;
@@ -89,6 +100,7 @@ export default function ExpenseModal({
     const amountError = validateAmount(amount);
     if (amountError) {
       setError(amountError);
+      scrollToError();
       submitLockRef.current = false;
       setIsSubmitting(false);
       return;
@@ -98,12 +110,14 @@ export default function ExpenseModal({
     );
     if (splitType === "custom" && invalidParticipant) {
       setError("分攤金額不可為負數，且不可超過 NT$ 1,000,000。");
+      scrollToError();
       submitLockRef.current = false;
       setIsSubmitting(false);
       return;
     }
     if (splitType === "custom" && Math.abs(customTotal - amount) > 0.01) {
       setError("自訂分攤金額加總必須等於支出金額。");
+      scrollToError();
       submitLockRef.current = false;
       setIsSubmitting(false);
       return;
@@ -129,6 +143,7 @@ export default function ExpenseModal({
       const data = await response.json();
       if (!data.success) {
         setError(data.error || "新增支出失敗。");
+        scrollToError();
         submitLockRef.current = false;
         setIsSubmitting(false);
         return;
@@ -147,6 +162,7 @@ export default function ExpenseModal({
       onClose();
     } catch (err) {
       setError("新增支出失敗。");
+      scrollToError();
       console.error(err);
     } finally {
       submitLockRef.current = false;
@@ -168,7 +184,7 @@ export default function ExpenseModal({
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          <div ref={errorRef} className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
             {error}
           </div>
         )}
@@ -181,6 +197,7 @@ export default function ExpenseModal({
                 value={expense.name}
                 onChange={(event) => setExpense({ ...expense, name: event.target.value })}
                 placeholder="例如：晚餐"
+                lang="zh"
               />
             </label>
             <label>
