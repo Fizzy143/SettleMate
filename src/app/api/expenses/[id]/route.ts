@@ -1,260 +1,219 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { ApiResponse } from "@/types";
+import { buildExpenseActivityDetail, serializeActivityContent } from "@/lib/activity";
 import { round } from "@/lib/calculations";
+import { validateAmount, validateParticipantAmount } from "@/lib/money";
+import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
+import { ApiResponse } from "@/types";
 
-// GET /api/expenses/[id] - 獲取單個支出詳情
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-
-    const expense = await prisma.expense.findUnique({
-      where: { id },
-      include: {
-        paidBy: true,
-        participants: {
-          include: {
-            member: true,
-          },
-        },
-      },
-    });
-
-    if (!expense) {
-      return NextResponse.json<ApiResponse<any>>(
-        {
-          success: false,
-          error: "Expense not found",
-        },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: expense,
-    });
-  } catch (error) {
-    console.error("Error fetching expense:", error);
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: false,
-        error: "Failed to fetch expense",
-      },
-      { status: 500 }
-    );
-  }
-}
-
-interface UpdateExpenseRequest {
+type UpdateExpenseRequest = {
   date?: string;
   name?: string;
   amount?: number;
   paidById?: string;
   notes?: string;
   splitType?: "equal" | "custom";
-  participants?: Array<{
-    memberId: string;
-    amount?: number;
-  }>;
+  participants?: Array<{ memberId: string; amount?: number }>;
+};
+
+async function getExpenseWithAccess(request: NextRequest, id: string) {
+  const expense = await prisma.expense.findUnique({
+    where: { id },
+    include: { paidBy: true, participants: { include: { member: true } } },
+  });
+  if (!expense) return null;
+  const allowed = await canAccessGroup(getUserId(request), expense.groupId);
+  return allowed ? expense : null;
 }
 
-// PUT /api/expenses/[id] - 更新支出
+function resolveParticipantAmounts(
+  amount: number,
+  splitType: "equal" | "custom",
+  participants: Array<{ memberId: string; amount?: number }>
+) {
+  if (splitType === "equal") {
+    const amountPerPerson = round(amount / participants.length, 2);
+    const remainder = round(amount - amountPerPerson * participants.length, 2);
+    return participants.map((participant, index) => ({
+      memberId: participant.memberId,
+      amount: index === 0 ? round(amountPerPerson + remainder, 2) : amountPerPerson,
+    }));
+  }
+  const participantAmounts = participants.map((participant) => ({
+    memberId: participant.memberId,
+    amount: round(Number(participant.amount ?? 0), 2),
+  }));
+  const invalidParticipant = participantAmounts.find((participant) =>
+    validateParticipantAmount(participant.amount)
+  );
+  if (invalidParticipant) {
+    throw new Error("Participant amount must be between 0 and 1000000");
+  }
+  const total = participantAmounts.reduce((sum, participant) => sum + participant.amount, 0);
+  if (Math.abs(total - amount) > 0.01) {
+    throw new Error("Sum of participant amounts must equal total amount");
+  }
+  return participantAmounts;
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const expense = await getExpenseWithAccess(request, id);
+    if (!expense) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Expense not found" },
+        { status: 404 }
+      );
+    }
+    const fullExpense = await prisma.expense.findUnique({
+      where: { id },
+      include: { paidBy: true, participants: { include: { member: true } } },
+    });
+    return NextResponse.json<ApiResponse<unknown>>({ success: true, data: fullExpense });
+  } catch (error) {
+    console.error("Error fetching expense:", error);
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to fetch expense" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const body: UpdateExpenseRequest = await request.json();
-
-    // 獲取原有支出
-    const existingExpense = await prisma.expense.findUnique({
-      where: { id },
-    });
-
+    const existingExpense = await getExpenseWithAccess(request, id);
     if (!existingExpense) {
-      return NextResponse.json<ApiResponse<any>>(
-        {
-          success: false,
-          error: "Expense not found",
-        },
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Expense not found" },
         { status: 404 }
       );
     }
+    if (existingExpense.kind === "settlement") {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Settlement payments cannot be edited" },
+        { status: 400 }
+      );
+    }
 
-    const amount = body.amount || existingExpense.amount;
+    const body: UpdateExpenseRequest = await request.json();
+    const amount =
+      body.amount === undefined ? existingExpense.amount : round(Number(body.amount), 2);
+    const amountError = validateAmount(amount);
+    if (amountError) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: amountError },
+        { status: 400 }
+      );
+    }
     const splitType = body.splitType || "custom";
-    const participants = body.participants;
-
-    // 如果更新了金額或分攤方式，需要重新計算分攤
     let participantAmounts:
       | Array<{ memberId: string; amount: number }>
       | undefined;
 
-    if (body.amount || body.splitType || body.participants) {
-      if (!participants) {
-        return NextResponse.json<ApiResponse<any>>(
-          {
-            success: false,
-            error: "Participants are required",
-          },
+    if (body.amount !== undefined || body.splitType || body.participants) {
+      if (!body.participants?.length) {
+        return NextResponse.json<ApiResponse<unknown>>(
+          { success: false, error: "Participants are required" },
           { status: 400 }
         );
       }
-
-      if (splitType === "equal") {
-        const amountPerPerson = round(amount / participants.length, 2);
-        const remainder = round(
-          amount - amountPerPerson * participants.length,
-          2
+      try {
+        participantAmounts = resolveParticipantAmounts(amount, splitType, body.participants);
+      } catch (error) {
+        return NextResponse.json<ApiResponse<unknown>>(
+          { success: false, error: (error as Error).message },
+          { status: 400 }
         );
-
-        participantAmounts = participants.map((p, index) => ({
-          memberId: p.memberId,
-          amount:
-            index === 0
-              ? round(amountPerPerson + remainder, 2)
-              : amountPerPerson,
-        }));
-      } else {
-        participantAmounts = participants.map((p) => ({
-          memberId: p.memberId,
-          amount: round(p.amount || 0, 2),
-        }));
-
-        const totalParticipant = participantAmounts.reduce(
-          (sum, p) => sum + p.amount,
-          0
-        );
-        if (Math.abs(totalParticipant - amount) > 0.01) {
-          return NextResponse.json<ApiResponse<any>>(
-            {
-              success: false,
-              error: "Sum of participant amounts must equal total amount",
-            },
-            { status: 400 }
-          );
-        }
       }
     }
 
-    // 更新支出
     const expense = await prisma.expense.update({
       where: { id },
       data: {
         ...(body.date && { date: new Date(body.date) }),
         ...(body.name && { name: body.name.trim() }),
-        ...(body.amount && { amount: round(body.amount, 2) }),
+        ...(body.amount !== undefined && { amount }),
         ...(body.paidById && { paidById: body.paidById }),
         ...(body.notes !== undefined && { notes: body.notes?.trim() || null }),
-        // 如果有新的分攤方式，先刪除舊的參與者，再新增
         ...(participantAmounts && {
           participants: {
             deleteMany: {},
-            createMany: {
-              data: participantAmounts,
-            },
+            createMany: { data: participantAmounts },
           },
         }),
       },
-      include: {
-        paidBy: true,
-        participants: {
-          include: {
-            member: true,
-          },
-        },
-      },
+      include: { paidBy: true, participants: { include: { member: true } } },
     });
 
-    // 記錄活動日誌
-    try {
-      await prisma.activityLog.create({
+    prisma.activityLog
+      .create({
         data: {
           groupId: existingExpense.groupId,
           actionType: "edit_expense",
-          actionBy: expense.paidBy.name,
-          content: `編輯了支出「${expense.name}」，金額 NT$${expense.amount.toFixed(2)}`,
+          actionBy: getDisplayName(request),
+          content: serializeActivityContent(
+            `編輯支出「${expense.name}」`,
+            buildExpenseActivityDetail(expense)
+          ),
         },
-      });
-    } catch (logError) {
-      console.error("Failed to create activity log:", logError);
-    }
+      })
+      .catch((logError) => console.error("Failed to create activity log:", logError));
 
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: expense,
-    });
+    return NextResponse.json<ApiResponse<unknown>>({ success: true, data: expense });
   } catch (error) {
     console.error("Error updating expense:", error);
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: false,
-        error: "Failed to update expense",
-      },
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to update expense" },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/expenses/[id] - 刪除支出
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-
-    // 先獲取支出信息用於日誌記錄
-    const expense = await prisma.expense.findUnique({
-      where: { id },
-      include: { paidBy: true },
-    });
-
+    const expense = await getExpenseWithAccess(request, id);
     if (!expense) {
-      return NextResponse.json<ApiResponse<any>>(
-        {
-          success: false,
-          error: "Expense not found",
-        },
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Expense not found" },
         { status: 404 }
       );
     }
 
-    // 刪除支出
-    await prisma.expense.delete({
-      where: { id },
-    });
+    await prisma.expense.delete({ where: { id } });
 
-    // 記錄活動日誌
-    try {
-      await prisma.activityLog.create({
+    prisma.activityLog
+      .create({
         data: {
           groupId: expense.groupId,
-          actionType: "delete_expense",
-          actionBy: expense.paidBy.name,
-          content: `刪除了支出「${expense.name}」`,
+          actionType: expense.kind === "settlement" ? "delete_settlement" : "delete_expense",
+          actionBy: getDisplayName(request),
+          content: serializeActivityContent(
+            expense.kind === "settlement"
+              ? `刪除還款「${expense.name}」`
+              : `刪除支出「${expense.name}」`,
+            buildExpenseActivityDetail(expense)
+          ),
         },
-      });
-    } catch (logError) {
-      console.error("Failed to create activity log:", logError);
-    }
+      })
+      .catch((logError) => console.error("Failed to create activity log:", logError));
 
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: { id },
-    });
+    return NextResponse.json<ApiResponse<unknown>>({ success: true, data: { id } });
   } catch (error) {
     console.error("Error deleting expense:", error);
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: false,
-        error: "Failed to delete expense",
-      },
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to delete expense" },
       { status: 500 }
     );
   }

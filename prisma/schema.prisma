@@ -1,6 +1,3 @@
-// Split Bill App - Prisma Schema
-// 朋友群分帳工具的數據庫結構
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,90 +7,112 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 群組
-model Group {
-  id        String   @id @default(cuid())
-  name      String   // 群組名稱
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model User {
+  id          String   @id
+  displayName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  members   Member[]
-  expenses  Expense[]
+  memberships GroupMembership[]
+
+  @@map("users")
+}
+
+model Group {
+  id         String   @id @default(cuid())
+  name       String
+  inviteCode String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  members      Member[]
+  expenses     Expense[]
   activityLogs ActivityLog[]
+  memberships  GroupMembership[]
 
   @@map("groups")
 }
 
-// 成員
-model Member {
+model GroupMembership {
   id        String   @id @default(cuid())
+  userId    String
   groupId   String
-  name      String   // 成員名稱
-  role      String?  // 角色標籤（選填）
-  color     String?  // 顏色標記（選填），例如 "bg-red-200"
-  isActive  Boolean  @default(true) // 啟用狀態
+  role      String   @default("member")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  // 作為支出者的記錄
-  expensesPaid Expense[] @relation("paidBy")
-  
-  // 作為分攤者的記錄
+  @@unique([userId, groupId])
+  @@index([groupId])
+  @@map("group_memberships")
+}
+
+model Member {
+  id        String   @id @default(cuid())
+  groupId   String
+  name      String
+  role      String?
+  color     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group                 Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  expensesPaid          Expense[]            @relation("paidBy")
   expenseParticipations ExpenseParticipant[]
 
   @@index([groupId])
   @@map("members")
 }
 
-// 支出紀錄
 model Expense {
   id        String   @id @default(cuid())
   groupId   String
-  date      DateTime // 支出日期
-  name      String   // 項目名稱
-  amount    Float // 總金額
-  paidById  String   // 付款者 ID
-  notes     String?  // 備註（選填）
+  date      DateTime
+  name      String
+  amount    Float
+  paidById  String
+  kind      String   @default("expense")
+  notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  group        Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  paidBy       Member                @relation("paidBy", fields: [paidById], references: [id])
+  group        Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy       Member               @relation("paidBy", fields: [paidById], references: [id])
   participants ExpenseParticipant[]
 
   @@index([groupId])
+  @@index([groupId, kind])
   @@index([paidById])
   @@map("expenses")
 }
 
-// 支出分攤紀錄
 model ExpenseParticipant {
   id        String   @id @default(cuid())
   expenseId String
   memberId  String
-  amount    Float // 該成員應分攤的金額
+  amount    Float
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   member  Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  @@unique([expenseId, memberId]) // 同一筆支出中，每個成員只能出現一次
+  @@unique([expenseId, memberId])
   @@map("expense_participants")
 }
 
-// 操作紀錄
 model ActivityLog {
-  id        String   @id @default(cuid())
-  groupId   String
-  actionType String  // "add_expense", "edit_expense", "delete_expense", "add_member", "delete_member"
-  actionBy  String   // 執行操作的人名稱
-  content   String   // 詳細描述
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  groupId    String
+  actionType String
+  actionBy   String
+  content    String
+  createdAt  DateTime @default(now())
 
-  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([groupId])
   @@map("activity_logs")

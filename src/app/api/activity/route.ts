@@ -1,16 +1,21 @@
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { NextRequest, NextResponse } from "next/server";
+import { parseActivityContent } from "@/lib/activity";
+import { canAccessGroup, getUserId } from "@/lib/serverIdentity";
 
-// GET - 獲取活動紀錄
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const groupId = searchParams.get("groupId");
-
+    const groupId = request.nextUrl.searchParams.get("groupId");
     if (!groupId) {
       return NextResponse.json(
-        { success: false, error: "缺少群組 ID" },
+        { success: false, error: "groupId is required" },
         { status: 400 }
+      );
+    }
+    if (!(await canAccessGroup(getUserId(request), groupId))) {
+      return NextResponse.json(
+        { success: false, error: "Group not found" },
+        { status: 404 }
       );
     }
 
@@ -22,50 +27,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: activityLogs,
+      data: activityLogs.map((log) => ({
+        ...log,
+        ...parseActivityContent(log.content),
+      })),
     });
   } catch (error) {
-    console.error("GET /api/activity 錯誤:", error);
+    console.error("GET /api/activity error:", error);
     return NextResponse.json(
-      { success: false, error: "伺服器錯誤" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST - 新增活動紀錄
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { groupId, actionType, actionBy, content } = body;
-
-    if (!groupId || !actionType || !actionBy || !content) {
-      return NextResponse.json(
-        { success: false, error: "缺少必要欄位" },
-        { status: 400 }
-      );
-    }
-
-    const activityLog = await prisma.activityLog.create({
-      data: {
-        groupId,
-        actionType,
-        actionBy,
-        content,
-      },
-    });
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: activityLog,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("POST /api/activity 錯誤:", error);
-    return NextResponse.json(
-      { success: false, error: "伺服器錯誤" },
+      { success: false, error: "Failed to fetch activity" },
       { status: 500 }
     );
   }

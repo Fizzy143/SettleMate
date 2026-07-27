@@ -1,86 +1,185 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { buildExpenseActivityDetail, serializeActivityContent } from "@/lib/activity";
+import { calculateMemberTotals, calculateSettlements, round } from "@/lib/calculations";
+import { validateAmount } from "@/lib/money";
+import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
 import { ApiResponse } from "@/types";
-import {
-  calculateMemberTotals,
-  calculateSettlements,
-  MemberTotal,
-  Settlement,
-} from "@/lib/calculations";
 
-// GET /api/settlements?groupId=xxx - 計算群組結算
+type SettlementPaymentPayload = {
+  groupId: string;
+  fromMemberId: string;
+  toMemberId: string;
+  amount: number;
+  date?: string;
+  notes?: string;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const groupId = request.nextUrl.searchParams.get("groupId");
-
     if (!groupId) {
-      return NextResponse.json<ApiResponse<any>>(
-        {
-          success: false,
-          error: "groupId is required",
-        },
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "groupId is required" },
         { status: 400 }
       );
     }
-
-    // 獲取群組的所有支出和成員
-    const group = await prisma.group.findUnique({
-      where: { id: groupId },
-      include: {
-        members: {
-          where: { isActive: true }, // 只計算啟用的成員
-        },
-        expenses: {
-          include: {
-            participants: true,
-          },
-        },
-      },
-    });
-
-    if (!group) {
-      return NextResponse.json<ApiResponse<any>>(
-        {
-          success: false,
-          error: "Group not found",
-        },
+    if (!(await canAccessGroup(getUserId(request), groupId))) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Group not found" },
         { status: 404 }
       );
     }
 
-    // 計算每個成員的應收應付
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        members: { where: { isActive: true } },
+        expenses: { include: { participants: true } },
+      },
+    });
+
+    if (!group) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Group not found" },
+        { status: 404 }
+      );
+    }
+
     const memberTotals = calculateMemberTotals(
       group.expenses,
-      group.members.map((m: any) => m.id)
+      group.members.map((member) => member.id)
     );
-
-    // 計算最少轉賬次數的結算方案
     const settlements = calculateSettlements(memberTotals);
+    const memberMap = new Map(group.members.map((member) => [member.id, member]));
+    const recentPayments = await prisma.expense.findMany({
+      where: { groupId, kind: "settlement" },
+      include: { paidBy: true, participants: { include: { member: true } } },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take: 20,
+    });
 
-    // 獲取成員信息用於返回
-    const memberMap = new Map(group.members.map((m: any) => [m.id, m]));
-    const memberTotalsArray = Array.from(memberTotals.values());
-
-    return NextResponse.json<ApiResponse<any>>({
+    return NextResponse.json<ApiResponse<unknown>>({
       success: true,
       data: {
-        memberTotals: memberTotalsArray,
-        settlements: settlements.map((s) => ({
-          from: s.from,
-          fromName: (memberMap.get(s.from) as any)?.name || "",
-          to: s.to,
-          toName: (memberMap.get(s.to) as any)?.name || "",
-          amount: s.amount,
+        memberTotals: Array.from(memberTotals.values()),
+        settlements: settlements.map((settlement) => ({
+          from: settlement.from,
+          fromName: memberMap.get(settlement.from)?.name || "",
+          to: settlement.to,
+          toName: memberMap.get(settlement.to)?.name || "",
+          amount: settlement.amount,
         })),
+        recentPayments: recentPayments.map((payment) => {
+          const recipient = payment.participants[0]?.member;
+          return {
+            id: payment.id,
+            from: payment.paidById,
+            fromName: payment.paidBy.name,
+            to: recipient?.id || "",
+            toName: recipient?.name || "",
+            amount: payment.amount,
+            date: payment.date,
+            notes: payment.notes,
+            createdAt: payment.createdAt,
+          };
+        }),
       },
     });
   } catch (error) {
     console.error("Error calculating settlements:", error);
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: false,
-        error: "Failed to calculate settlements",
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to calculate settlements" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body: SettlementPaymentPayload = await request.json();
+    const { groupId, fromMemberId, toMemberId, date, notes } = body;
+    const amount = round(Number(body.amount), 2);
+
+    if (!groupId || !fromMemberId || !toMemberId || !Number.isFinite(amount)) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+    if (fromMemberId === toMemberId) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Payer and recipient must be different" },
+        { status: 400 }
+      );
+    }
+    const amountError = validateAmount(amount);
+    if (amountError) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: amountError },
+        { status: 400 }
+      );
+    }
+    if (!(await canAccessGroup(getUserId(request), groupId))) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Group not found" },
+        { status: 404 }
+      );
+    }
+
+    const members = await prisma.member.findMany({
+      where: { groupId, id: { in: [fromMemberId, toMemberId] }, isActive: true },
+    });
+    const fromMember = members.find((member) => member.id === fromMemberId);
+    const toMember = members.find((member) => member.id === toMemberId);
+    if (!fromMember || !toMember) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Member not found" },
+        { status: 404 }
+      );
+    }
+
+    const payment = await prisma.expense.create({
+      data: {
+        groupId,
+        date: date ? new Date(date) : new Date(),
+        name: `${fromMember.name} 還款給 ${toMember.name}`,
+        amount,
+        paidById: fromMemberId,
+        kind: "settlement",
+        notes: notes?.trim() || null,
+        participants: {
+          create: {
+            memberId: toMemberId,
+            amount,
+          },
+        },
       },
+      include: { paidBy: true, participants: { include: { member: true } } },
+    });
+
+    prisma.activityLog
+      .create({
+        data: {
+          groupId,
+          actionType: "add_settlement",
+          actionBy: getDisplayName(request),
+          content: serializeActivityContent(
+            `新增還款「${fromMember.name} 還給 ${toMember.name}」`,
+            buildExpenseActivityDetail(payment)
+          ),
+        },
+      })
+      .catch((logError) => console.error("Failed to create activity log:", logError));
+
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: true, data: payment },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Error creating settlement payment:", error);
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to create settlement payment" },
       { status: 500 }
     );
   }

@@ -1,34 +1,49 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { MoreHorizontal, Pencil, Plus, Save, UserX, Users } from "lucide-react";
+import { apiFetch } from "@/lib/clientIdentity";
+import { AmountText, Button, Card, EmptyState, Input, MemberAvatar } from "@/components/ui";
+import { formatCurrency, formatSignedCurrency } from "@/lib/format";
 
-interface Member {
+type Member = {
   id: string;
   name: string;
-  role?: string;
-  color?: string;
+  role?: string | null;
+  color?: string | null;
   isActive: boolean;
-}
+};
 
-interface MemberStats {
+type MemberStats = {
   memberId: string;
   totalExpense: number;
   netAmount: number;
-}
-
-// 顏色映射 - Tailwind class 到實際顏色
-const colorMap: { [key: string]: string } = {
-  "bg-blue-200": "#bfdbfe",
-  "bg-red-200": "#fecaca",
-  "bg-green-200": "#bbf7d0",
-  "bg-yellow-200": "#fef08a",
-  "bg-purple-200": "#e9d5ff",
-  "bg-pink-200": "#fbcfe8",
-  "bg-indigo-200": "#c7d2fe",
-  "bg-cyan-200": "#a5f3fc",
 };
+
+type ExpenseSummary = {
+  paidById: string;
+  amount: number;
+};
+
+type SettlementTotal = {
+  memberId: string;
+  netAmount: number;
+};
+
+const colorOptions = [
+  "bg-blue-200",
+  "bg-red-200",
+  "bg-green-200",
+  "bg-yellow-200",
+  "bg-purple-200",
+  "bg-pink-200",
+  "bg-indigo-200",
+  "bg-cyan-200",
+];
 
 export default function MembersPage() {
   const params = useParams();
@@ -38,451 +53,291 @@ export default function MembersPage() {
   const [memberStats, setMemberStats] = useState<Map<string, MemberStats>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [isSubmittingMember, setIsSubmittingMember] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
-  const [editingMemberData, setEditingMemberData] = useState<Partial<Member> | null>(null);
+  const [editingMember, setEditingMember] = useState<Partial<Member>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [newMember, setNewMember] = useState({
-    name: "",
-    role: "",
-    color: "bg-blue-200",
-  });
+  const [newMember, setNewMember] = useState({ name: "", role: "", color: "bg-blue-200" });
   const [error, setError] = useState("");
 
-  // 顏色選項
-  const colorOptions = [
-    "bg-blue-200",
-    "bg-red-200",
-    "bg-green-200",
-    "bg-yellow-200",
-    "bg-purple-200",
-    "bg-pink-200",
-    "bg-indigo-200",
-    "bg-cyan-200",
-  ];
-
-  // 加載成員和統計數據
-  useEffect(() => {
-    fetchData();
-  }, [groupId]);
-
   const fetchData = async () => {
+    setIsLoading(true);
+    setError("");
     try {
-      setIsLoading(true);
       const [membersRes, expensesRes, settlementsRes] = await Promise.all([
-        fetch(`/api/members?groupId=${groupId}`),
-        fetch(`/api/expenses?groupId=${groupId}`),
-        fetch(`/api/settlements?groupId=${groupId}`),
+        apiFetch(`/api/members?groupId=${groupId}`),
+        apiFetch(`/api/expenses?groupId=${groupId}`),
+        apiFetch(`/api/settlements?groupId=${groupId}`),
       ]);
-
       const membersData = await membersRes.json();
       const expensesData = await expensesRes.json();
       const settlementsData = await settlementsRes.json();
+      if (membersData.success) setMembers(membersData.data || []);
 
-      if (membersData.success) {
-        setMembers(membersData.data || []);
-      }
-
-      // 計算每個成員的統計信息
-      if (expensesData.success && settlementsData.success) {
-        const statsMap = new Map<string, MemberStats>();
+      if (membersData.success && expensesData.success && settlementsData.success) {
         const expenses = expensesData.data || [];
-        const memberTotals = settlementsData.data?.memberTotals || [];
-
-        // 計算每個成員的總支出
-        const expenseByMember = new Map<string, number>();
-        expenses.forEach((expense: any) => {
-          const current = expenseByMember.get(expense.paidById) || 0;
-          expenseByMember.set(expense.paidById, current + expense.amount);
+        const totals = settlementsData.data?.memberTotals || [];
+        const paidMap = new Map<string, number>();
+        (expenses as ExpenseSummary[]).forEach((expense) => {
+          paidMap.set(expense.paidById, (paidMap.get(expense.paidById) || 0) + expense.amount);
         });
-
-        // 構建統計信息
+        const stats = new Map<string, MemberStats>();
         (membersData.data || []).forEach((member: Member) => {
-          const totalExpense = expenseByMember.get(member.id) || 0;
-          const memberTotal = memberTotals.find((m: any) => m.memberId === member.id);
-          const netAmount = memberTotal?.netAmount || 0;
-
-          statsMap.set(member.id, {
+          const total = (totals as SettlementTotal[]).find((item) => item.memberId === member.id);
+          stats.set(member.id, {
             memberId: member.id,
-            totalExpense,
-            netAmount,
+            totalExpense: paidMap.get(member.id) || 0,
+            netAmount: total?.netAmount || 0,
           });
         });
-
-        setMemberStats(statsMap);
+        setMemberStats(stats);
       }
     } catch (err) {
-      setError("加載失敗");
+      setError("無法載入成員");
       console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 新增成員
-  const handleAddMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMember.name.trim() || isSubmittingMember) return;
+  useEffect(() => {
+    void fetchData();
+  }, [groupId]);
 
-    setIsSubmittingMember(true);
+  const handleAddMember = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!newMember.name.trim()) return;
     try {
-      const response = await fetch("/api/members", {
+      const response = await apiFetch("/api/members", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           groupId,
-          name: newMember.name.trim(),
-          role: newMember.role.trim() || null,
+          name: newMember.name,
+          role: newMember.role || null,
           color: newMember.color,
         }),
       });
-
       const data = await response.json();
       if (data.success) {
         setNewMember({ name: "", role: "", color: "bg-blue-200" });
         setIsAddingMember(false);
         await fetchData();
-      } else {
-        setError(data.error || "新增失敗");
-      }
+        window.dispatchEvent(new Event("settlemate:group-updated"));
+      } else setError(data.error || "新增成員失敗");
     } catch (err) {
-      setError("網路錯誤");
-      console.error(err);
-    } finally {
-      setIsSubmittingMember(false);
-    }
-  };
-
-  // 停用成員
-  const handleRemoveMember = async (memberId: string) => {
-    if (!confirm("確定要停用此成員嗎？（停用後不會顯示在成員列表中，但交易紀錄會保留）")) return;
-
-    try {
-      const response = await fetch(`/api/members/${memberId}`, {
-        method: "DELETE",
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setOpenMenuId(null);
-        await fetchData();
-      } else {
-        // 顯示具體的錯誤信息
-        setError(data.error || "停用失敗");
-      }
-    } catch (err) {
-      setError("網路錯誤");
+      setError("新增成員失敗");
       console.error(err);
     }
   };
 
-  // 開始編輯成員
-  const startEditMember = (member: Member) => {
-    setEditingMemberId(member.id);
-    setEditingMemberData({ ...member });
-    setOpenMenuId(null);
-  };
-
-  // 保存編輯
-  const handleSaveEditMember = async (memberId: string) => {
-    if (!editingMemberData?.name?.trim()) return;
-
+  const handleSaveMember = async (memberId: string) => {
+    if (!editingMember.name?.trim()) return;
     try {
-      const response = await fetch(`/api/members/${memberId}`, {
+      const response = await apiFetch(`/api/members/${memberId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editingMemberData.name.trim(),
-          role: editingMemberData.role?.trim() || null,
-          color: editingMemberData.color,
-        }),
+        body: JSON.stringify(editingMember),
       });
-
       const data = await response.json();
       if (data.success) {
         setEditingMemberId(null);
-        setEditingMemberData(null);
+        setEditingMember({});
         await fetchData();
-      } else {
-        setError(data.error || "更新失敗");
-      }
+        window.dispatchEvent(new Event("settlemate:group-updated"));
+      } else setError(data.error || "更新成員失敗");
     } catch (err) {
-      setError("網路錯誤");
+      setError("更新成員失敗");
       console.error(err);
     }
   };
 
-  const formatAmount = (amount: number): string => {
-    if (amount > 0) return `+NT$${amount.toFixed(2)}`;
-    if (amount < 0) return `-NT$${Math.abs(amount).toFixed(2)}`;
-    return "NT$0.00";
+  const handleRemoveMember = async (memberId: string) => {
+    if (!confirm("確定要停用這位成員嗎？既有支出資料會保留。")) return;
+    try {
+      const response = await apiFetch(`/api/members/${memberId}`, { method: "DELETE" });
+      const data = await response.json();
+      if (data.success) {
+        await fetchData();
+        window.dispatchEvent(new Event("settlemate:group-updated"));
+      }
+      else setError(data.error || "停用成員失敗");
+    } catch (err) {
+      setError("停用成員失敗");
+      console.error(err);
+    }
   };
 
-  const amountColor = (amount: number): string => {
-    if (amount > 0) return "text-green-600 font-bold";
-    if (amount < 0) return "text-red-600 font-bold";
-    return "text-gray-600";
-  };
+  if (isLoading) return <Card className="p-6 text-sm text-slate-500">載入成員中...</Card>;
 
-  if (isLoading) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-600">加載中...</p>
-      </div>
-    );
-  }
-
-  const activeMembers = members.filter((m) => m.isActive);
+  const activeMembers = members.filter((member) => member.isActive);
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-slate-950 text-white">
+              <Users size={22} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-950">成員</h2>
+              <p className="text-sm text-slate-500">管理分帳參與者與每個人的目前淨額。</p>
+            </div>
+          </div>
+          <Button type="button" onClick={() => setIsAddingMember(!isAddingMember)}>
+            <Plus size={18} /> 新增成員
+          </Button>
+        </div>
+      </Card>
+
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
           {error}
         </div>
       )}
 
-      {/* 成員列表 */}
-      <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 mb-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">
-            成員列表 ({activeMembers.length})
-          </h2>
-          <button
-            onClick={() => setIsAddingMember(!isAddingMember)}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-          >
-            {isAddingMember ? "取消" : "+ 新增成員"}
-          </button>
-        </div>
-
-        {/* 新增成員表單 */}
-        {isAddingMember && (
-          <form onSubmit={handleAddMember} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="grid gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  成員名稱 *
-                </label>
-                <input
-                  type="text"
-                  placeholder="例如：小王"
-                  value={newMember.name}
-                  onChange={(e) =>
-                    setNewMember({ ...newMember, name: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
+      {isAddingMember && (
+        <Card className="p-4">
+          <form onSubmit={handleAddMember} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <Input value={newMember.name} onChange={(event) => setNewMember({ ...newMember, name: event.target.value })} placeholder="成員名稱" />
+            <Input value={newMember.role} onChange={(event) => setNewMember({ ...newMember, role: event.target.value })} placeholder="備註或代號" />
+            <Button type="submit">新增</Button>
+            <div className="flex flex-wrap gap-2 sm:col-span-3">
+              {colorOptions.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setNewMember({ ...newMember, color })}
+                  className={`h-8 w-8 rounded-full ${color} ${newMember.color === color ? "ring-2 ring-slate-950 ring-offset-2" : ""}`}
+                  aria-label={color}
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  角色/標籤（選填）
-                </label>
-                <input
-                  type="text"
-                  placeholder="例如：朋友、同事"
-                  value={newMember.role}
-                  onChange={(e) =>
-                    setNewMember({ ...newMember, role: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  顏色標記
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {colorOptions.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setNewMember({ ...newMember, color })}
-                      className={`w-12 h-12 rounded-lg border-2 transition ${
-                        newMember.color === color
-                          ? "border-gray-900"
-                          : "border-gray-300"
-                      } ${color}`}
-                    />
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
-
-            <button
-              type="submit"
-              disabled={isSubmittingMember}
-              className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition"
-            >
-              {isSubmittingMember ? "新增中..." : "新增成員"}
-            </button>
           </form>
-        )}
+        </Card>
+      )}
 
-        {/* 成員卡片 */}
-        {activeMembers.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">
-            還沒有成員，新增一個開始吧！
-          </p>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {activeMembers.map((member) => {
-              const stats = memberStats.get(member.id);
-              const bgColor = member.color ? colorMap[member.color] : "#e5e7eb";
-              const isEditing = editingMemberId === member.id;
-
-              return (
-                <div key={member.id} className="relative">
-                  {isEditing ? (
-                    // 編輯模式
-                    <div className="p-4 rounded-lg border-2 border-blue-300 bg-blue-50">
-                      <div className="space-y-3">
-                        <input
-                          type="text"
-                          value={editingMemberData?.name || ""}
-                          onChange={(e) =>
-                            setEditingMemberData({
-                              ...editingMemberData,
-                              name: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="成員名稱"
+      {activeMembers.length === 0 ? (
+        <EmptyState title="尚無成員" description="新增成員後，就可以開始記錄共同支出。" />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {activeMembers.map((member) => {
+            const stats = memberStats.get(member.id);
+            const isEditing = editingMemberId === member.id;
+            return (
+              <Card key={member.id} className="p-4">
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-semibold text-slate-700">成員名稱</span>
+                      <Input
+                        value={editingMember.name || ""}
+                        onChange={(event) => setEditingMember({ ...editingMember, name: event.target.value })}
+                        placeholder="修改成員名稱"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-semibold text-slate-700">備註或代號</span>
+                      <Input
+                        value={editingMember.role || ""}
+                        onChange={(event) => setEditingMember({ ...editingMember, role: event.target.value })}
+                        placeholder="修改備註或代號"
+                      />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {colorOptions.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setEditingMember({ ...editingMember, color })}
+                          className={`h-8 w-8 rounded-full ${color} ${editingMember.color === color ? "ring-2 ring-slate-950 ring-offset-2" : ""}`}
+                          aria-label={color}
                         />
-                        <input
-                          type="text"
-                          value={editingMemberData?.role || ""}
-                          onChange={(e) =>
-                            setEditingMemberData({
-                              ...editingMemberData,
-                              role: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="角色/標籤（選填）"
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          {colorOptions.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() =>
-                                setEditingMemberData({
-                                  ...editingMemberData,
-                                  color,
-                                })
-                              }
-                              className={`w-8 h-8 rounded-lg border-2 transition ${
-                                editingMemberData?.color === color
-                                  ? "border-gray-900"
-                                  : "border-gray-300"
-                              } ${color}`}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                          <button
-                            onClick={() => handleSaveEditMember(member.id)}
-                            className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition"
-                          >
-                            保存
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingMemberId(null);
-                              setEditingMemberData(null);
-                            }}
-                            className="flex-1 px-3 py-2 bg-gray-400 text-white text-sm rounded hover:bg-gray-500 transition"
-                          >
-                            取消
-                          </button>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ) : (
-                    // 正常顯示模式
-                    <>
-                      <Link
-                        href={`/groups/${groupId}/members/${member.id}`}
-                        style={{ backgroundColor: bgColor }}
-                        className="block p-4 rounded-lg border-2 border-gray-200 hover:shadow-lg transition cursor-pointer"
-                      >
-                        <div className="flex justify-between items-start mb-3 pr-12">
-                          <div className="flex-1">
-                            <h3 className="font-bold text-gray-900 text-lg">
-                              {member.name}
-                            </h3>
-                            {member.role && (
-                              <p className="text-sm text-gray-600">{member.role}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 統計信息 */}
-                        <div className="bg-white bg-opacity-70 p-3 rounded text-sm space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-700">總支出:</span>
-                            <span className="font-semibold text-gray-900">
-                              NT$ {(stats?.totalExpense || 0).toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-700">淨額:</span>
-                            <span className={`font-bold ${amountColor(stats?.netAmount || 0)}`}>
-                              {formatAmount(stats?.netAmount || 0)}
-                            </span>
-                          </div>
+                    <div className="flex gap-2">
+                      <Button type="button" className="flex-1" onClick={() => handleSaveMember(member.id)}>
+                        <Save size={16} /> 儲存
+                      </Button>
+                      <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditingMemberId(null)}>
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <Link href={`/groups/${groupId}/members/${member.id}`} className="flex min-w-0 items-center gap-3">
+                        <MemberAvatar name={member.name} color={member.color} size="lg" />
+                        <div className="min-w-0">
+                          <h3 className="truncate text-lg font-bold text-slate-950">{member.name}</h3>
+                          {member.role && <p className="text-sm text-slate-500">{member.role}</p>}
                         </div>
                       </Link>
-
-                      {/* 三點菜單按鈕 */}
-                      <div className="absolute top-4 right-4">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
+                      <div className="relative">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setOpenMenuId(openMenuId === member.id ? null : member.id);
                           }}
-                          className="p-1 hover:bg-gray-300 rounded-lg transition"
-                          title="更多選項"
+                          title="成員操作"
                         >
-                          <span className="text-xl font-bold text-gray-800">⋮</span>
-                        </button>
-
-                        {/* 下拉菜單 */}
+                          <MoreHorizontal size={18} />
+                        </Button>
                         {openMenuId === member.id && (
-                          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                          <>
                             <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                startEditMember(member);
-                              }}
-                              className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-gray-700 text-sm whitespace-nowrap"
-                            >
-                              ✏️ 編輯
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                handleRemoveMember(member.id);
-                              }}
-                              className="block w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm border-t border-gray-200 whitespace-nowrap"
-                            >
-                              � 停用
-                            </button>
-                          </div>
+                              type="button"
+                              aria-label="關閉成員操作選單"
+                              className="fixed inset-0 z-10 cursor-default bg-transparent"
+                              onClick={() => setOpenMenuId(null)}
+                            />
+                            <div className="absolute right-0 top-11 z-20 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMemberId(member.id);
+                                  setEditingMember(member);
+                                  setOpenMenuId(null);
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:shadow-sm focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                              >
+                                <Pencil size={15} /> 編輯
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  void handleRemoveMember(member.id);
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 hover:shadow-sm focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                              >
+                                <UserX size={15} /> 停用成員
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-500">已付款</p>
+                        <p className="mt-1 font-bold text-slate-950">{formatCurrency(stats?.totalExpense || 0)}</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-500">淨額</p>
+                        <AmountText value={stats?.netAmount || 0}>{formatSignedCurrency(stats?.netAmount || 0)}</AmountText>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
+

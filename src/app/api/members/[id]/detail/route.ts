@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/types";
+import { canAccessGroup, getUserId } from "@/lib/serverIdentity";
 
-// GET /api/members/[id]/detail - 獲取成員詳情和交易記錄
+// GET /api/members/[id]/detail - ?脣??閰單??漱????
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -10,13 +11,13 @@ export async function GET(
   try {
     const { id } = await params;
 
-    // 獲取成員信息
+    // ?脣??靽⊥
     const member = await prisma.member.findUnique({
       where: { id },
     });
 
     if (!member) {
-      return NextResponse.json<ApiResponse<any>>(
+      return NextResponse.json<ApiResponse<unknown>>(
         {
           success: false,
           error: "Member not found",
@@ -25,7 +26,17 @@ export async function GET(
       );
     }
 
-    // 獲取該成員支付的支出
+    if (!(await canAccessGroup(getUserId(request), member.groupId))) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        {
+          success: false,
+          error: "Member not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    // ?脣?閰脫??⊥隞??臬
     const expensesPaid = await prisma.expense.findMany({
       where: { paidById: id },
       include: {
@@ -39,7 +50,7 @@ export async function GET(
       orderBy: { date: "desc" },
     });
 
-    // 獲取該成員參與的支出
+    // ?脣?閰脫??∪????臬
     const expensesParticipated = await prisma.expense.findMany({
       where: {
         participants: {
@@ -59,7 +70,7 @@ export async function GET(
       orderBy: { date: "desc" },
     });
 
-    // 合併交易記錄並去重
+    // ?蔥鈭斗?閮?銝血??
     const allTransactionIds = new Set<string>();
     const transactions = [];
 
@@ -83,17 +94,17 @@ export async function GET(
       }
     }
 
-    // 按日期排序
+    // ???摨?
     transactions.sort((a, b) => {
       const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
       if (dateCompare !== 0) return dateCompare;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-    // 計算與其他成員的欠債關係
+    // 閮??隞??∠?甈??
     const debtMap: { [memberId: string]: number } = {};
 
-    // 初始化所有成員
+    // ????????
     const groupMembers = await prisma.member.findMany({
       where: { groupId: member.groupId, isActive: true },
     });
@@ -104,40 +115,40 @@ export async function GET(
       }
     }
 
-    // 計算欠款
+    // 閮?甈狡
     for (const expense of transactions) {
       const participant = expense.participants.find((p) => p.memberId === id);
 
       if (expense.paidById === id) {
-        // 該成員支付了這筆支出，其他人欠他
+        // 閰脫??⊥隞????臬嚗隞犖甈?
         for (const p of expense.participants) {
           if (p.memberId !== id) {
             debtMap[p.memberId] = (debtMap[p.memberId] || 0) + p.amount;
           }
         }
       } else if (participant) {
-        // 該成員參與了這筆支出，欠支付人
+        // 閰脫??∪??????臬嚗??臭?鈭?
         debtMap[expense.paidById] = (debtMap[expense.paidById] || 0) - participant.amount;
       }
     }
 
-    // 轉換為債務關係列表
+    // 頧??箏??靽?銵?
     const debtRelationships = Object.entries(debtMap)
       .map(([memberId, amount]) => {
         const debtor = groupMembers.find((m) => m.id === memberId);
         return {
           memberId,
           memberName: debtor?.name || "Unknown",
-          amount, // 正數表示該成員欠當前成員，負數表示當前成員欠該成員
+          amount, // 甇?銵函內閰脫??⊥??嗅??嚗??貉”蝷箇???⊥?閰脫???
         };
       })
       .filter((d) => d.amount !== 0)
       .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
-    // 計算淨額（正數表示應收，負數表示應付）
+    // 閮?瘛券?嚗迤?貉”蝷箸??塚?鞎銵函內??嚗?
     const netAmount = debtRelationships.reduce((sum, d) => sum + d.amount, 0);
 
-    return NextResponse.json<ApiResponse<any>>({
+    return NextResponse.json<ApiResponse<unknown>>({
       success: true,
       data: {
         member,
@@ -148,7 +159,7 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching member detail:", error);
-    return NextResponse.json<ApiResponse<any>>(
+    return NextResponse.json<ApiResponse<unknown>>(
       {
         success: false,
         error: "Failed to fetch member detail",

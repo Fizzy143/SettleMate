@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "postbuild": "prisma db push --skip-generate || true",
+    "postbuild": "prisma db push --skip-generate --accept-data-loss || true",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "prisma": "^5.22.0",
     "react": "19.2.4",

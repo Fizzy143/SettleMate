@@ -1,52 +1,51 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { canAccessGroup, getDisplayName, getUserId } from "@/lib/serverIdentity";
 import { ApiResponse } from "@/types";
 
-// GET /api/members/[id] - 獲取單個成員詳情
+async function getMemberWithAccess(request: NextRequest, id: string) {
+  const member = await prisma.member.findUnique({ where: { id } });
+  if (!member) return null;
+  const allowed = await canAccessGroup(getUserId(request), member.groupId);
+  return allowed ? member : null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-
-    const member = await prisma.member.findUnique({
-      where: { id },
-    });
-
+    const member = await getMemberWithAccess(request, id);
     if (!member) {
-      return NextResponse.json<ApiResponse<any>>(
-        {
-          success: false,
-          error: "Member not found",
-        },
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Member not found" },
         { status: 404 }
       );
     }
-
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: member,
-    });
+    return NextResponse.json<ApiResponse<unknown>>({ success: true, data: member });
   } catch (error) {
     console.error("Error fetching member:", error);
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: false,
-        error: "Failed to fetch member",
-      },
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to fetch member" },
       { status: 500 }
     );
   }
 }
 
-// PUT /api/members/[id] - 更新成員
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const existing = await getMemberWithAccess(request, id);
+    if (!existing) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Member not found" },
+        { status: 404 }
+      );
+    }
     const { name, role, color, isActive } = await request.json();
 
     const member = await prisma.member.update({
@@ -59,71 +58,62 @@ export async function PUT(
       },
     });
 
-    // 異步記錄活動日誌
-    prisma.activityLog.create({
-      data: {
-        groupId: member.groupId,
-        actionType: "edit_member",
-        actionBy: "系統",
-        content: `編輯了成員「${member.name}」的資訊`,
-      },
-    }).catch((logError) => {
-      console.error("Failed to create activity log:", logError);
-    });
+    prisma.activityLog
+      .create({
+        data: {
+          groupId: member.groupId,
+          actionType: "edit_member",
+          actionBy: getDisplayName(request),
+          content: `Updated member "${member.name}"`,
+        },
+      })
+      .catch((logError) => console.error("Failed to create activity log:", logError));
 
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: member,
-    });
+    return NextResponse.json<ApiResponse<unknown>>({ success: true, data: member });
   } catch (error) {
     console.error("Error updating member:", error);
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: false,
-        error: "Failed to update member",
-      },
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to update member" },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/members/[id] - 停用成員（標記為不啟用，保留數據完整性）
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const existing = await getMemberWithAccess(request, id);
+    if (!existing) {
+      return NextResponse.json<ApiResponse<unknown>>(
+        { success: false, error: "Member not found" },
+        { status: 404 }
+      );
+    }
 
-    // 標記為不啟用（停用成員）
     const member = await prisma.member.update({
       where: { id },
       data: { isActive: false },
     });
 
-    // 異步記錄活動日誌（不等待完成，不阻擋用戶）
-    prisma.activityLog.create({
-      data: {
-        groupId: member.groupId,
-        actionType: "deactivate_member",
-        actionBy: "系統",
-        content: `停用了成員「${member.name}」`,
-      },
-    }).catch((logError) => {
-      console.error("Failed to create activity log:", logError);
-    });
+    prisma.activityLog
+      .create({
+        data: {
+          groupId: member.groupId,
+          actionType: "deactivate_member",
+          actionBy: getDisplayName(request),
+          content: `Deactivated member "${member.name}"`,
+        },
+      })
+      .catch((logError) => console.error("Failed to create activity log:", logError));
 
-    return NextResponse.json<ApiResponse<any>>({
-      success: true,
-      data: member,
-    });
+    return NextResponse.json<ApiResponse<unknown>>({ success: true, data: member });
   } catch (error) {
     console.error("Error deactivating member:", error);
-    return NextResponse.json<ApiResponse<any>>(
-      {
-        success: false,
-        error: "Failed to deactivate member",
-      },
+    return NextResponse.json<ApiResponse<unknown>>(
+      { success: false, error: "Failed to deactivate member" },
       { status: 500 }
     );
   }
