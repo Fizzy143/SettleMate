@@ -24,6 +24,7 @@ import {
 import { apiFetch, getClientIdentity } from "@/lib/clientIdentity";
 import { AmountText, Button, Card, Input, MemberAvatar } from "@/components/ui";
 import { formatSignedCurrency } from "@/lib/format";
+import { copyInviteUrl } from "@/lib/invite";
 import ExpenseModal from "./components/ExpenseModal";
 
 type Member = {
@@ -194,18 +195,16 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
 
   const handleCopyInviteCode = async () => {
     if (!group?.inviteCode) return;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(group.inviteCode);
-      } else {
-        throw new Error("Clipboard API is unavailable");
-      }
-      setCopiedInviteCode(true);
-      window.setTimeout(() => setCopiedInviteCode(false), 1500);
-    } catch (error) {
-      console.error("Failed to copy invite code", error);
-      window.prompt("複製邀請碼", group.inviteCode);
-    }
+    await copyInviteUrl({
+      inviteCode: group.inviteCode,
+      origin: window.location.origin,
+      writeText: navigator.clipboard?.writeText.bind(navigator.clipboard),
+      fallbackPrompt: (title, value) => {
+        window.prompt(title, value);
+      },
+    });
+    setCopiedInviteCode(true);
+    window.setTimeout(() => setCopiedInviteCode(false), 1500);
   };
 
   const openEditGroup = () => {
@@ -285,10 +284,12 @@ export default function GroupLayout({ children }: { children: ReactNode }) {
             type="button"
             onClick={handleCopyInviteCode}
             className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
-            title="複製邀請碼"
+            title="複製邀請連結"
           >
             {copiedInviteCode ? <Check size={14} /> : <Copy size={14} />}
-            邀請碼 {group.inviteCode || "未設定"}
+            {copiedInviteCode
+              ? "邀請連結已複製"
+              : "邀請碼 " + (group.inviteCode || "未設定")}
           </button>
         </div>
       </div>

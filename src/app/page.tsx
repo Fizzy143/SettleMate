@@ -4,6 +4,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Copy,
@@ -14,6 +15,7 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
+import { normalizeInviteCode } from "@/lib/invite";
 import { apiFetch, clearClientIdentity, getClientIdentity, saveClientIdentity, type ClientIdentity } from "@/lib/clientIdentity";
 import { Badge, Button, Card, EmptyState, Input, MemberAvatar } from "@/components/ui";
 
@@ -28,6 +30,7 @@ type Group = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [identity, setIdentity] = useState<ClientIdentity | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [groups, setGroups] = useState<Group[]>([]);
@@ -97,29 +100,11 @@ export default function Home() {
     }
   };
 
-  const handleJoinGroup = async (event: FormEvent) => {
+  const handleJoinGroup = (event: FormEvent) => {
     event.preventDefault();
-    if (!inviteCode.trim()) return;
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await apiFetch("/api/groups/join", {
-        method: "POST",
-        body: JSON.stringify({ inviteCode }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setInviteCode("");
-        await fetchGroups();
-      } else {
-        setError(data.error || "找不到邀請碼");
-      }
-    } catch (err) {
-      setError("加入群組失敗");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+    const normalizedCode = normalizeInviteCode(inviteCode);
+    if (!normalizedCode) return;
+    router.push("/invite/" + encodeURIComponent(normalizedCode));
   };
 
   const handleResetIdentity = () => {

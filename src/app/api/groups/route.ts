@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
             name: user.displayName,
             role: "建立者",
             color: "bg-blue-200",
+            userId: user.id,
           },
         },
         memberships: {

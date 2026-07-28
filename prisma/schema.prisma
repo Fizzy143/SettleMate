@@ -14,6 +14,7 @@ model User {
   updatedAt   DateTime @updatedAt
 
   memberships GroupMembership[]
+  members     Member[]
 
   @@map("users")
 }
@@ -52,6 +53,7 @@ model GroupMembership {
 model Member {
   id        String   @id @default(cuid())
   groupId   String
+  userId    String?
   name      String
   role      String?
   color     String?
@@ -60,10 +62,13 @@ model Member {
   updatedAt DateTime @updatedAt
 
   group                 Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user                  User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   expensesPaid          Expense[]            @relation("paidBy")
   expenseParticipations ExpenseParticipant[]
 
+  @@unique([groupId, userId])
   @@index([groupId])
+  @@index([userId])
   @@map("members")
 }
 

@@ -15,6 +15,22 @@ function createUserId() {
   return `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
+function headersForIdentity(
+  identity: ClientIdentity,
+  init: RequestInit
+): Headers {
+  const headers = new Headers(init.headers);
+  headers.set("x-settlemate-user-id", identity.userId);
+  headers.set(
+    "x-settlemate-display-name",
+    encodeURIComponent(identity.displayName)
+  );
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  return headers;
+}
+
 export function getClientIdentity(): ClientIdentity | null {
   if (typeof window === "undefined") return null;
   const userId = window.localStorage.getItem(USER_ID_KEY);
@@ -23,13 +39,30 @@ export function getClientIdentity(): ClientIdentity | null {
   return { userId, displayName };
 }
 
+export function createProvisionalIdentity(
+  displayName: string
+): ClientIdentity {
+  return {
+    userId: createUserId(),
+    displayName: displayName.trim(),
+  };
+}
+
+export function persistClientIdentity(
+  identity: ClientIdentity
+): ClientIdentity {
+  window.localStorage.setItem(USER_ID_KEY, identity.userId);
+  window.localStorage.setItem(DISPLAY_NAME_KEY, identity.displayName);
+  return identity;
+}
+
 export function saveClientIdentity(displayName: string) {
-  const trimmedName = displayName.trim();
+  const provisional = createProvisionalIdentity(displayName);
   const existingId = window.localStorage.getItem(USER_ID_KEY);
-  const userId = existingId || createUserId();
-  window.localStorage.setItem(USER_ID_KEY, userId);
-  window.localStorage.setItem(DISPLAY_NAME_KEY, trimmedName);
-  return { userId, displayName: trimmedName };
+  return persistClientIdentity({
+    ...provisional,
+    userId: existingId || provisional.userId,
+  });
 }
 
 export function clearClientIdentity() {
@@ -37,13 +70,22 @@ export function clearClientIdentity() {
   window.localStorage.removeItem(DISPLAY_NAME_KEY);
 }
 
+export async function apiFetchAs(
+  identity: ClientIdentity,
+  path: string,
+  init: RequestInit = {}
+) {
+  return fetch(path, {
+    ...init,
+    headers: headersForIdentity(identity, init),
+  });
+}
+
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const identity = getClientIdentity();
+  if (identity) return apiFetchAs(identity, path, init);
+
   const headers = new Headers(init.headers);
-  if (identity) {
-    headers.set("x-settlemate-user-id", identity.userId);
-    headers.set("x-settlemate-display-name", encodeURIComponent(identity.displayName));
-  }
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

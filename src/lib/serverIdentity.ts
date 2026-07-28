@@ -18,6 +18,19 @@ export function getDisplayName(request: NextRequest): string {
   }
 }
 
+export function getValidatedDisplayName(request: NextRequest): string | null {
+  const encodedValue = request.headers.get(USER_NAME_HEADER);
+  if (!encodedValue) return null;
+
+  try {
+    const displayName = decodeURIComponent(encodedValue).trim();
+    if (displayName.length < 1 || displayName.length > 50) return null;
+    return displayName;
+  } catch {
+    return null;
+  }
+}
+
 export async function ensureUser(request: NextRequest) {
   const userId = getUserId(request);
   if (!userId) return null;
