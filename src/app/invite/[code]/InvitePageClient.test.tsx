@@ -99,6 +99,15 @@ describe("InvitePageClient", () => {
     ).toBeChecked();
   });
 
+  it("does not show a redundant preview label above the group name", async () => {
+    render(<InvitePageClient code="TYO826" />);
+
+    expect(
+      await screen.findByRole("heading", { name: "東京旅行", level: 1 })
+    ).toBeInTheDocument();
+    expect(screen.queryByText("預覽群組")).not.toBeInTheDocument();
+  });
+
   it("disables anonymous join for a trimmed-empty name", async () => {
     const user = userEvent.setup();
     render(<InvitePageClient code="TYO826" />);

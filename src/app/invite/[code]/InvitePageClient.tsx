@@ -197,10 +197,7 @@ export default function InvitePageClient({ code }: { code: string }) {
               SettleMate
             </p>
           </div>
-          <p className="mt-6 text-xs font-semibold text-sky-300 sm:mt-8 sm:text-sm">
-            預覽群組
-          </p>
-          <h1 className="mt-1.5 text-3xl font-bold tracking-tight text-white sm:mt-2 sm:text-4xl">
+          <h1 className="mt-6 text-3xl font-bold tracking-tight text-white sm:mt-8 sm:text-4xl">
             {group.name}
           </h1>
           <p className="mt-2 text-xs text-slate-300 sm:mt-3 sm:text-sm">
