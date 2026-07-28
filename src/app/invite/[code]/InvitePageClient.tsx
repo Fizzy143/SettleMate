@@ -186,31 +186,35 @@ export default function InvitePageClient({ code }: { code: string }) {
     (!identity ? !validName(displayName) : createMember && !validName(memberName));
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-6 text-slate-950 sm:px-6">
-      <div className="mx-auto max-w-xl overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-50 shadow-xl">
-        <section className="bg-slate-950 px-6 py-8 text-white sm:px-8">
+    <main className="min-h-screen bg-slate-100 px-6 pb-10 pt-11 text-slate-950 sm:py-6">
+      <div className="mx-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-50 shadow-xl sm:max-w-xl">
+        <section className="bg-slate-950 px-5 py-5 text-white sm:px-8 sm:py-8">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-500 text-lg font-black text-white">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500 text-base font-black text-white sm:h-10 sm:w-10 sm:text-lg">
               S
             </span>
-            <p className="text-lg font-bold text-white">SettleMate</p>
+            <p className="text-base font-bold text-white sm:text-lg">
+              SettleMate
+            </p>
           </div>
-          <p className="mt-8 text-sm font-semibold text-sky-300">預覽群組</p>
-          <h1 className="mt-2 text-4xl font-bold tracking-tight text-white">
+          <p className="mt-6 text-xs font-semibold text-sky-300 sm:mt-8 sm:text-sm">
+            預覽群組
+          </p>
+          <h1 className="mt-1.5 text-3xl font-bold tracking-tight text-white sm:mt-2 sm:text-4xl">
             {group.name}
           </h1>
-          <p className="mt-3 text-sm text-slate-300">
+          <p className="mt-2 text-xs text-slate-300 sm:mt-3 sm:text-sm">
             朋友邀請你加入這個分帳群組
           </p>
-          <div className="mt-6 flex flex-wrap gap-3 text-sm">
-            <p className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200">
-              <strong className="mr-1.5 text-base text-white">
+          <div className="mt-4 flex flex-wrap gap-2 text-xs sm:mt-6 sm:gap-3 sm:text-sm">
+            <p className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-slate-200 sm:rounded-xl sm:px-4 sm:py-3">
+              <strong className="mr-1.5 text-sm text-white sm:text-base">
                 {group.memberCount}
               </strong>
               目前分帳成員
             </p>
-            <p className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200">
-              <strong className="mr-1.5 text-base text-white">
+            <p className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-slate-200 sm:rounded-xl sm:px-4 sm:py-3">
+              <strong className="mr-1.5 text-sm text-white sm:text-base">
                 {group.expenseCount}
               </strong>
               已記錄支出
@@ -218,9 +222,9 @@ export default function InvitePageClient({ code }: { code: string }) {
           </div>
         </section>
 
-        <section className="bg-slate-50 px-6 py-6 text-slate-950 sm:px-8">
+        <section className="bg-slate-50 px-4 py-4 text-slate-950 sm:px-8 sm:py-6">
           {preview.viewerState === "member" ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
               <h2 className="text-xl font-bold text-slate-950">
                 你已經加入這個群組
               </h2>
@@ -242,18 +246,15 @@ export default function InvitePageClient({ code }: { code: string }) {
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
                 {!identity ? (
                   <>
-                    <h2 className="text-xl font-bold text-slate-950">
-                      建立你的身分
+                    <h2 className="text-lg font-bold text-slate-950 sm:text-xl">
+                      設定顯示名稱
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      第一次使用 SettleMate
-                    </p>
-                    <label className="mt-5 block">
+                    <label className="mt-4 block sm:mt-5">
                       <span className="mb-2 block text-sm font-semibold text-slate-700">
-                        你的顯示名稱
+                        顯示名稱
                       </span>
                       <input
                         value={displayName}

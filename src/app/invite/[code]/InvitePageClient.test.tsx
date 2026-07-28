@@ -84,10 +84,13 @@ describe("InvitePageClient", () => {
   it("shows the one-time identity form for an anonymous viewer", async () => {
     render(<InvitePageClient code="TYO826" />);
 
-    expect(await screen.findByText("建立你的身分")).toBeInTheDocument();
+    expect(await screen.findByText("設定顯示名稱")).toBeInTheDocument();
+    expect(
+      screen.queryByText("第一次使用 SettleMate")
+    ).not.toBeInTheDocument();
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
     expect(
-      screen.getByRole("textbox", { name: "你的顯示名稱" })
+      screen.getByRole("textbox", { name: "顯示名稱" })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", {
@@ -100,7 +103,7 @@ describe("InvitePageClient", () => {
     const user = userEvent.setup();
     render(<InvitePageClient code="TYO826" />);
     const input = await screen.findByRole("textbox", {
-      name: "你的顯示名稱",
+      name: "顯示名稱",
     });
 
     await user.type(input, "   ");
@@ -114,7 +117,7 @@ describe("InvitePageClient", () => {
     const user = userEvent.setup();
     render(<InvitePageClient code="TYO826" />);
     await user.type(
-      await screen.findByRole("textbox", { name: "你的顯示名稱" }),
+      await screen.findByRole("textbox", { name: "顯示名稱" }),
       "Fizzy"
     );
     await user.click(
@@ -233,7 +236,7 @@ describe("InvitePageClient", () => {
     const user = userEvent.setup();
     render(<InvitePageClient code="TYO826" />);
     await user.type(
-      await screen.findByRole("textbox", { name: "你的顯示名稱" }),
+      await screen.findByRole("textbox", { name: "顯示名稱" }),
       "Fizzy"
     );
     await user.click(
@@ -269,7 +272,7 @@ describe("InvitePageClient", () => {
     const user = userEvent.setup();
     render(<InvitePageClient code="TYO826" />);
     const input = await screen.findByRole("textbox", {
-      name: "你的顯示名稱",
+      name: "顯示名稱",
     });
     await user.type(input, "Fizzy");
     await user.click(
